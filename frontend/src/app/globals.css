@@ -31,7 +31,8 @@ button, a {
     -webkit-tap-highlight-color: transparent;
 }
 
-.login-page {
+.login-page,
+.signup-page {
     min-height: 100vh;
     display: grid;
     place-items: center;
@@ -40,7 +41,8 @@ button, a {
                 transparent 28%), var(--background);
 }
 
-.login-card {
+.login-card,
+.signup-card {
     width: min(100%, 480px);
     overflow: hidden;
     border: 1px solid var(--border);
@@ -49,7 +51,8 @@ button, a {
     box-shadow: 0 18px 50px rgba(79, 179, 173, 0.15);
 }
 
-.login-header {
+.login-header,
+.signup-header {
     display: grid;
     grid-template-columns: 40px 1fr 40px;
     align-items: center;
@@ -71,7 +74,8 @@ button, a {
     font-weight: 800;
 }
 
-.login-header h1 {
+.login-header h1,
+.signup-header h1 {
     margin: 0;
     color: var(--text);
     font-size: 30px;
@@ -80,7 +84,8 @@ button, a {
     letter-spacing: -0.04em;
 }
 
-.login-content {
+.login-content,
+.signup-content {
     padding: 34px 38px 36px;
 }
 
@@ -97,7 +102,8 @@ button, a {
     text-transform: uppercase;
 }
 
-.login-description {
+.login-description,
+.signup-description {
     margin: 0;
     color: var(--secondary-text);
     font-size: 15px;
@@ -105,6 +111,7 @@ button, a {
 }
 
 .login-form,
+.signup-form,
 .social-buttons {
     display: grid;
     gap: 18px;
@@ -275,20 +282,24 @@ button, a {
 }
 
 @media (max-width: 520px) {
-    .login-page {
+    .login-page,
+    .signup-page {
         padding: 16px 12px;
     }
 
-    .login-card {
+    .login-card,
+    .signup-card {
         border-radius: 20px;
     }
 
-    .login-header {
+    .login-header,
+    .signup-header {
         min-height: 76px;
         padding: 0 20px;
     }
 
-    .login-content {
+    .login-content,
+    .signup-content {
         padding: 28px 22px 30px;
     }
 
