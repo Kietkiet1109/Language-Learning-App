@@ -1,13 +1,27 @@
-# Prononcia backend - Python 3.11+
+# Prononcia backend — Python 3.11+
 # FFmpeg is a system dependency and must be installed separately.
 
+# FastAPI service and configuration
 fastapi>=0.115.12
 uvicorn[standard]>=0.34.2
 pydantic-settings>=2.9.1
 python-multipart>=0.0.20
 
-# Persistence
-pymongo>=4.12.0
+# PostgreSQL and schema migrations
+sqlalchemy[asyncio]>=2.0.40
+asyncpg>=0.30.0
+alembic>=1.15.2
+
+# Authentication and security
+pyjwt>=2.10.1
+pwdlib[argon2]>=0.2.1
+
+# S3-compatible object storage
+boto3>=1.37.0
+
+# Background task processing
+celery[redis]>=5.4.0
+redis>=5.2.1
 
 # Media ingestion and transcription
 yt-dlp>=2025.4.30
