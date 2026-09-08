@@ -1,12 +1,37 @@
-import type { Metadata } from "next";
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
 
-export const metadata: Metadata = {
-    title: "Signup | Prononcia",
-    description: "Create your Prononcia account and begin practicing.",
-};
+const PASSWORD_PATTERN =
+    "(?=.*[a-z])(?=.*[A-Z])(?=.*[^A-Za-z0-9]).{8,}";
 
 export default function SignupPage() {
+    const [password, setPassword] = useState("");
+
+    const passwordRules = [
+        {
+            label: "At least 8 characters",
+            isMet: password.length >= 8,
+        },
+        {
+            label: "At least 1 uppercase letter",
+            isMet: /[A-Z]/.test(password),
+        },
+        {
+            label: "At least 1 lowercase letter",
+            isMet: /[a-z]/.test(password),
+        },
+        {
+            label: "At least 1 number",
+            isMet: /[0-9]/.test(password),
+        },
+        {
+            label: "At least 1 symbol",
+            isMet: /[^A-Za-z0-9]/.test(password),
+        },
+    ];
+
     return (
         <main className="signup-page">
             <section className="signup-card" aria-labelledby="signup-title">
@@ -53,6 +78,18 @@ export default function SignupPage() {
                         </div>
 
                         <div className="form-field">
+                            <label htmlFor="confirmEmail">Confirm Email</label>
+                            <input
+                                id="confirmEmail"
+                                name="confirmEmail"
+                                type="email"
+                                autoComplete="email"
+                                placeholder="Confirm your email"
+                                required
+                            />
+                        </div>
+
+                        <div className="form-field">
                             <label htmlFor="password">Password</label>
                             <input
                                 id="password"
@@ -60,6 +97,36 @@ export default function SignupPage() {
                                 type="password"
                                 autoComplete="new-password"
                                 placeholder="Create a password"
+                                value={password}
+                                onChange={(event) => {
+                                    setPassword(event.target.value);
+                                }}
+                                minLength={8}
+                                pattern={PASSWORD_PATTERN}
+                                required
+                            />
+                            <ul className="password-rules">
+                                {passwordRules.map((rule) => (
+                                    <li
+                                        className={rule.isMet ? "is-met" : ""}
+                                        key={rule.label}
+                                    >
+                                        {rule.label}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+
+                        <div className="form-field">
+                            <label htmlFor="confirmPassword">
+                                Confirm Password
+                            </label>
+                            <input
+                                id="confirmPassword"
+                                name="confirmPassword"
+                                type="password"
+                                autoComplete="new-password"
+                                placeholder="Confirm your password"
                                 required
                             />
                         </div>

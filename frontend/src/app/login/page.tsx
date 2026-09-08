@@ -1,11 +1,7 @@
-import type { Metadata } from "next";
+"use client";
+
 import Link from "next/link";
 import Image from "next/image";
-
-export const metadata: Metadata = {
-    title: "Login | Prononcia",
-    description: "Continue your pronunciation journey with Prononcia.",
-};
 
 export default function LoginPage() {
     return (
