@@ -5,12 +5,40 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+const PASSWORD_PATTERN =
+    "(?=.*[a-z])(?=.*[A-Z])(?=.*[^A-Za-z0-9]).{8,}";
+
 export default function ResetPasswordPage() {
     const router = useRouter();
     const [newPassword, setNewPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
     const [errorMessage, setErrorMessage] = useState("");
     const [isSuccess, setIsSuccess] = useState(false);
+    const isPasswordMatch =
+        confirmPassword.length > 0 && newPassword === confirmPassword;
+
+        const passwordRules = [
+        {
+            label: "At least 8 characters",
+            isMet: newPassword.length >= 8,
+        },
+        {
+            label: "At least 1 uppercase letter",
+            isMet: /[A-Z]/.test(newPassword),
+        },
+        {
+            label: "At least 1 lowercase letter",
+            isMet: /[a-z]/.test(newPassword),
+        },
+        {
+            label: "At least 1 number",
+            isMet: /[0-9]/.test(newPassword),
+        },
+        {
+            label: "At least 1 symbol",
+            isMet: /[^A-Za-z0-9]/.test(newPassword),
+        },
+    ];
 
     useEffect(() => {
         if (!isSuccess) {
@@ -82,8 +110,20 @@ export default function ResetPasswordPage() {
                                 onChange={(event) => {
                                     setNewPassword(event.target.value);
                                 }}
+                                minLength={8}
+                                pattern={PASSWORD_PATTERN}
                                 required
                             />
+                            <ul className="password-rules">
+                                {passwordRules.map((rule) => (
+                                    <li
+                                        className={rule.isMet ? "is-met" : ""}
+                                        key={rule.label}
+                                    >
+                                        {rule.label}
+                                    </li>
+                                ))}
+                            </ul>
                         </div>
 
                         <div className="form-field">
@@ -100,8 +140,25 @@ export default function ResetPasswordPage() {
                                 onChange={(event) => {
                                     setConfirmPassword(event.target.value);
                                 }}
+                                aria-invalid={
+                                    confirmPassword.length > 0 &&
+                                    !isPasswordMatch
+                                }
                                 required
                             />
+                            {confirmPassword.length > 0 && (
+                                <p
+                                    className={
+                                        isPasswordMatch
+                                            ? "field-feedback success"
+                                            : "field-feedback error"
+                                    }
+                                >
+                                    {isPasswordMatch
+                                        ? "Passwords match."
+                                        : "Passwords do not match."}
+                                </p>
+                            )}
                         </div>
 
                         <button className="primary-button" type="submit">

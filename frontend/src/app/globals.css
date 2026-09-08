@@ -311,6 +311,20 @@ button, a {
     color: #a64444;
 }
 
+.field-feedback {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.field-feedback.success {
+    color: var(--primary-dark);
+}
+
+.field-feedback.error {
+    color: #a64444;
+}
+
 .auth-secondary-action {
     margin-top: 20px;
     text-align: center;
