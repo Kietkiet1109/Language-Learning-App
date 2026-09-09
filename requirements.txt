@@ -34,3 +34,4 @@ rapidfuzz>=3.13.0
 # HTTP clients and environment-file support
 httpx>=0.28.1
 python-dotenv>=1.1.0
+aiosmtplib>=3.0.2

@@ -110,7 +110,18 @@ S3_BUCKET_NAME=prononcia-media
 S3_REGION=us-west-2
 FRONTEND_ORIGIN=http://localhost:3000
 WHISPER_MODEL=small
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USERNAME=<smtp-username>
+SMTP_PASSWORD=<smtp-password>
+SMTP_FROM_EMAIL=no-reply@example.com
+SMTP_START_TLS=true
 ```
+
+Password recovery requires working SMTP settings. For Gmail, use
+`smtp.gmail.com` on port `587` with a Google app password rather than the
+normal account password. Copy `backend/.env.example` to `backend/.env`, fill
+in the provider values, and restart the FastAPI service.
 
 After the FastAPI entry point and worker are implemented, the intended commands are:
 

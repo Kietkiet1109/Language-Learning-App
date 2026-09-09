@@ -4,24 +4,29 @@ import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { confirmPasswordReset } from "@/lib/authApi";
 
 const PASSWORD_PATTERN =
-    "(?=.*[a-z])(?=.*[A-Z])(?=.*[^A-Za-z0-9]).{8,}";
+    "(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,}";
 
 export default function ResetPasswordPage() {
     const router = useRouter();
+    const [resetToken, setResetToken] = useState("");
     const [newPassword, setNewPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
     const [errorMessage, setErrorMessage] = useState("");
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
+
+    useEffect(() => {
+        const token = new URLSearchParams(window.location.search).get("token");
+        setResetToken(token ?? "");
+    }, []);
+
     const isPasswordMatch =
         confirmPassword.length > 0 && newPassword === confirmPassword;
-
-        const passwordRules = [
-        {
-            label: "At least 8 characters",
-            isMet: newPassword.length >= 8,
-        },
+    const passwordRules = [
+        { label: "At least 8 characters", isMet: newPassword.length >= 8 },
         {
             label: "At least 1 uppercase letter",
             isMet: /[A-Z]/.test(newPassword),
@@ -30,10 +35,7 @@ export default function ResetPasswordPage() {
             label: "At least 1 lowercase letter",
             isMet: /[a-z]/.test(newPassword),
         },
-        {
-            label: "At least 1 number",
-            isMet: /[0-9]/.test(newPassword),
-        },
+        { label: "At least 1 number", isMet: /[0-9]/.test(newPassword) },
         {
             label: "At least 1 symbol",
             isMet: /[^A-Za-z0-9]/.test(newPassword),
@@ -52,23 +54,36 @@ export default function ResetPasswordPage() {
         return () => window.clearTimeout(redirectTimer);
     }, [isSuccess, router]);
 
-    const handleResetPassword = (event: FormEvent<HTMLFormElement>) => {
+    const handleResetPassword = async (
+        event: FormEvent<HTMLFormElement>,
+    ) => {
         event.preventDefault();
         setErrorMessage("");
 
-        if (newPassword.length < 8) {
-            setErrorMessage(
-                "Your new password must contain at least 8 characters.",
-            );
+        if (!resetToken) {
+            setErrorMessage("This password-reset link is invalid or expired.");
             return;
         }
 
-        if (newPassword !== confirmPassword) {
+        if (!isPasswordMatch) {
             setErrorMessage("The passwords do not match.");
             return;
         }
 
-        setIsSuccess(true);
+        setIsSubmitting(true);
+
+        try {
+            await confirmPasswordReset(resetToken, newPassword);
+            setIsSuccess(true);
+        } catch (error) {
+            setErrorMessage(
+                error instanceof Error
+                    ? error.message
+                    : "Unable to reset your password. Please try again.",
+            );
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     return (
@@ -81,9 +96,7 @@ export default function ResetPasswordPage() {
 
             <section className="auth-card" aria-labelledby="reset-title">
                 <header className="auth-header">
-                    <span className="header-mark" aria-hidden="true">
-                        P
-                    </span>
+                    <span className="header-mark" aria-hidden="true">P</span>
                     <h1 id="reset-title">Reset Password</h1>
                     <span className="header-spacer" aria-hidden="true" />
                 </header>
@@ -109,6 +122,7 @@ export default function ResetPasswordPage() {
                                 value={newPassword}
                                 onChange={(event) => {
                                     setNewPassword(event.target.value);
+                                    setErrorMessage("");
                                 }}
                                 minLength={8}
                                 pattern={PASSWORD_PATTERN}
@@ -139,6 +153,7 @@ export default function ResetPasswordPage() {
                                 value={confirmPassword}
                                 onChange={(event) => {
                                     setConfirmPassword(event.target.value);
+                                    setErrorMessage("");
                                 }}
                                 aria-invalid={
                                     confirmPassword.length > 0 &&
@@ -146,23 +161,14 @@ export default function ResetPasswordPage() {
                                 }
                                 required
                             />
-                            {confirmPassword.length > 0 && (
-                                <p
-                                    className={
-                                        isPasswordMatch
-                                            ? "field-feedback success"
-                                            : "field-feedback error"
-                                    }
-                                >
-                                    {isPasswordMatch
-                                        ? "Passwords match."
-                                        : "Passwords do not match."}
-                                </p>
-                            )}
                         </div>
 
-                        <button className="primary-button" type="submit">
-                            Reset Password
+                        <button
+                            className="primary-button"
+                            type="submit"
+                            disabled={isSubmitting || isSuccess}
+                        >
+                            {isSubmitting ? "Resetting..." : "Reset Password"}
                         </button>
                     </form>
 

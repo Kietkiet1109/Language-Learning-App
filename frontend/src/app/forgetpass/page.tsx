@@ -4,8 +4,10 @@ import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-
-const VERIFICATION_CODE = "123456";
+import {
+    requestPasswordReset,
+    verifyPasswordReset,
+} from "@/lib/authApi";
 
 type FeedbackState = {
     tone: "success" | "error";
@@ -19,9 +21,17 @@ export default function ForgotPasswordPage() {
     const [hasRequestedCode, setHasRequestedCode] = useState(false);
     const [resendCountdown, setResendCountdown] = useState(0);
     const [feedback, setFeedback] = useState<FeedbackState>(null);
+    const [isSending, setIsSending] = useState(false);
+    const [isVerifying, setIsVerifying] = useState(false);
     const sendButtonLabel = hasRequestedCode
         ? "Resend Email"
         : "Send Email";
+    let sendButtonText = sendButtonLabel;
+    if (isSending) {
+        sendButtonText = "Sending...";
+    } else if (resendCountdown > 0) {
+        sendButtonText = `Resend in ${resendCountdown}s`;
+    }
 
     useEffect(() => {
         if (resendCountdown === 0) {
@@ -35,61 +45,68 @@ export default function ForgotPasswordPage() {
         return () => window.clearInterval(countdownTimer);
     }, [resendCountdown]);
 
-    const handleSendEmail = (event: FormEvent<HTMLFormElement>) => {
+    const handleSendEmail = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
 
         if (resendCountdown > 0) {
             return;
         }
 
-        const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        setFeedback(null);
+        setIsSending(true);
 
-        if (!emailPattern.test(email.trim())) {
+        try {
+            await requestPasswordReset(email.trim());
+            setHasRequestedCode(true);
+            setVerificationCode("");
+            setResendCountdown(30);
+            setFeedback({
+                tone: "success",
+                message: "Verification email sent.",
+            });
+        } catch (error) {
             setFeedback({
                 tone: "error",
-                message: "Please enter a valid email address.",
+                message:
+                    error instanceof Error
+                        ? error.message
+                        : "Unable to send the verification email.",
             });
-            return;
+        } finally {
+            setIsSending(false);
         }
-
-        setFeedback({
-            tone: "success",
-            message:
-                "Verification email sent.",
-        });
-        setHasRequestedCode(true);
-        setResendCountdown(30);
     };
 
-    const handleVerifyCode = (event: FormEvent<HTMLFormElement>) => {
+    const handleVerifyCode = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
+        setFeedback(null);
+        setIsVerifying(true);
 
-        if (!hasRequestedCode) {
+        try {
+            const result = await verifyPasswordReset(
+                email.trim(),
+                verificationCode,
+            );
+            const encodedToken = encodeURIComponent(result.reset_token);
+            router.push(`/resetpass?token=${encodedToken}`);
+        } catch (error) {
             setFeedback({
                 tone: "error",
-                message: "Request a verification code before verifying.",
+                message:
+                    error instanceof Error
+                        ? error.message
+                        : "The verification code is invalid or expired.",
             });
-            return;
+        } finally {
+            setIsVerifying(false);
         }
-
-        if (verificationCode !== VERIFICATION_CODE) {
-            setFeedback({
-                tone: "error",
-                message: "The verification code is invalid.",
-            });
-            return;
-        }
-
-        router.push("/resetpass");
     };
 
     return (
         <main className="auth-page">
             <section className="auth-card" aria-labelledby="forgot-title">
                 <header className="auth-header">
-                    <span className="header-mark" aria-hidden="true">
-                        P
-                    </span>
+                    <span className="header-mark" aria-hidden="true">P</span>
                     <h1 id="forgot-title">Forgot Password</h1>
                     <span className="header-spacer" aria-hidden="true" />
                 </header>
@@ -115,6 +132,7 @@ export default function ForgotPasswordPage() {
                                 value={email}
                                 onChange={(event) => {
                                     setEmail(event.target.value);
+                                    setFeedback(null);
                                 }}
                                 required
                             />
@@ -123,11 +141,9 @@ export default function ForgotPasswordPage() {
                         <button
                             className="primary-button"
                             type="submit"
-                            disabled={resendCountdown > 0}
+                            disabled={isSending || resendCountdown > 0}
                         >
-                            {resendCountdown > 0
-                                ? `Resend in ${resendCountdown}s`
-                                : sendButtonLabel}
+                            {sendButtonText}
                         </button>
                     </form>
 
@@ -157,13 +173,18 @@ export default function ForgotPasswordPage() {
                                     type="text"
                                     inputMode="numeric"
                                     autoComplete="one-time-code"
-                                    placeholder="Enter your code"
+                                    placeholder="Enter your 6-digit code"
                                     value={verificationCode}
                                     onChange={(event) => {
                                         setVerificationCode(
-                                            event.target.value,
+                                            event.target.value.replace(
+                                                /\D/g,
+                                                "",
+                                            ),
                                         );
+                                        setFeedback(null);
                                     }}
+                                    pattern="[0-9]{6}"
                                     maxLength={6}
                                     required
                                 />
@@ -172,8 +193,12 @@ export default function ForgotPasswordPage() {
                             <button
                                 className="primary-button"
                                 type="submit"
+                                disabled={
+                                    isVerifying
+                                    || verificationCode.length !== 6
+                                }
                             >
-                                Verify Code
+                                {isVerifying ? "Verifying..." : "Verify Code"}
                             </button>
                         </form>
                     )}

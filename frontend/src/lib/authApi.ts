@@ -7,7 +7,7 @@ interface AuthUser {
     email: string;
 }
 
-interface AuthResponse {
+export interface AuthResponse {
     user: AuthUser;
 }
 
@@ -15,10 +15,18 @@ interface ApiError {
     detail?: string;
 }
 
-async function requestAuth(
+export interface PasswordResetVerification {
+    reset_token: string;
+}
+
+interface PasswordResetMessage {
+    message: string;
+}
+
+async function requestApi<T>(
     endpoint: string,
     payload: Record<string, string>,
-): Promise<AuthResponse> {
+): Promise<T> {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -31,7 +39,7 @@ async function requestAuth(
         throw new Error(errorBody.detail ?? "Authentication failed.");
     }
 
-    return (await response.json()) as AuthResponse;
+    return (await response.json()) as T;
 }
 
 export function signupUser(
@@ -39,12 +47,44 @@ export function signupUser(
     email: string,
     password: string,
 ): Promise<AuthResponse> {
-    return requestAuth("/auth/signup", { name, email, password });
+    return requestApi<AuthResponse>("/auth/signup", {
+        name,
+        email,
+        password,
+    });
 }
 
 export function loginUser(
     email: string,
     password: string,
 ): Promise<AuthResponse> {
-    return requestAuth("/auth/login", { email, password });
+    return requestApi<AuthResponse>("/auth/login", { email, password });
+}
+
+export function requestPasswordReset(
+    email: string,
+): Promise<PasswordResetMessage> {
+    return requestApi<PasswordResetMessage>("/auth/password-reset/request", {
+        email,
+    });
+}
+
+export function verifyPasswordReset(
+    email: string,
+    code: string,
+): Promise<PasswordResetVerification> {
+    return requestApi<PasswordResetVerification>(
+        "/auth/password-reset/verify",
+        { email, code },
+    );
+}
+
+export function confirmPasswordReset(
+    resetToken: string,
+    newPassword: string,
+): Promise<PasswordResetMessage> {
+    return requestApi<PasswordResetMessage>(
+        "/auth/password-reset/confirm",
+        { reset_token: resetToken, new_password: newPassword },
+    );
 }
