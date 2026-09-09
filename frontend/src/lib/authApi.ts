@@ -5,6 +5,10 @@ export function getFacebookLoginUrl(): string {
     return `${API_BASE_URL}/auth/facebook/login`;
 }
 
+export function getGoogleLoginUrl(): string {
+    return `${API_BASE_URL}/auth/google/login`;
+}
+
 interface AuthUser {
     id: string;
     name: string;

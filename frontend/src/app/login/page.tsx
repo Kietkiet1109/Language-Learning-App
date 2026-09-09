@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
     getFacebookLoginUrl,
+    getGoogleLoginUrl,
     loginUser,
 } from "@/lib/authApi";
 
@@ -17,11 +18,12 @@ export default function LoginPage() {
     const [formError, setFormError] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isFacebookSubmitting, setIsFacebookSubmitting] = useState(false);
+    const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
 
     useEffect(() => {
-        const errorCode = new URLSearchParams(window.location.search).get(
-            "facebook_error",
-        );
+        const query = new URLSearchParams(window.location.search);
+        const facebookErrorCode = query.get("facebook_error");
+        const googleErrorCode = query.get("google_error");
         const messages: Record<string, string> = {
             facebook_not_configured:
                 "Facebook Login is not configured on the server.",
@@ -33,7 +35,16 @@ export default function LoginPage() {
                 "Facebook Login could not be completed.",
             facebook_account_link_failed:
                 "Your Facebook account could not be linked.",
+            google_not_configured:
+                "Google Login is not configured on the server.",
+            google_state_invalid:
+                "Google Login expired. Please try again.",
+            google_cancelled: "Google Login was cancelled.",
+            google_login_failed: "Google Login could not be completed.",
+            google_account_link_failed:
+                "Your Google account could not be linked.",
         };
+        const errorCode = facebookErrorCode ?? googleErrorCode;
         if (errorCode && messages[errorCode]) {
             setFormError(messages[errorCode]);
             window.history.replaceState({}, "", "/login");
@@ -63,6 +74,12 @@ export default function LoginPage() {
         setFormError("");
         setIsFacebookSubmitting(true);
         window.location.assign(getFacebookLoginUrl());
+    };
+
+    const handleGoogleLogin = () => {
+        setFormError("");
+        setIsGoogleSubmitting(true);
+        window.location.assign(getGoogleLoginUrl());
     };
 
     return (
@@ -155,7 +172,9 @@ export default function LoginPage() {
                             type="button"
                             onClick={handleFacebookLogin}
                             disabled={
-                                isSubmitting || isFacebookSubmitting
+                                isSubmitting
+                                || isFacebookSubmitting
+                                || isGoogleSubmitting
                             }
                         >
                             <Image
@@ -171,7 +190,16 @@ export default function LoginPage() {
                                     : "Login with Facebook"}
                             </span>
                         </button>
-                        <button className="social-button" type="button">
+                        <button
+                            className="social-button"
+                            type="button"
+                            onClick={handleGoogleLogin}
+                            disabled={
+                                isSubmitting
+                                || isFacebookSubmitting
+                                || isGoogleSubmitting
+                            }
+                        >
                             <Image
                                 className="social-icon"
                                 src="/google.svg"
@@ -179,7 +207,11 @@ export default function LoginPage() {
                                 width={22}
                                 height={22}
                             />
-                            <span>Login with Google</span>
+                            <span>
+                                {isGoogleSubmitting
+                                    ? "Connecting..."
+                                    : "Login with Google"}
+                            </span>
                         </button>
                     </div>
 

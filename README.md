@@ -120,6 +120,9 @@ FACEBOOK_APP_ID=<meta-app-id>
 FACEBOOK_APP_SECRET=<meta-app-secret>
 FACEBOOK_REDIRECT_URI=http://localhost:8000/auth/facebook/callback
 FACEBOOK_GRAPH_VERSION=v24.0
+GOOGLE_CLIENT_ID=<google-client-id>
+GOOGLE_CLIENT_SECRET=<google-client-secret>
+GOOGLE_REDIRECT_URI=http://localhost:8000/auth/google/callback
 ```
 
 Password recovery requires working SMTP settings. For Gmail, use

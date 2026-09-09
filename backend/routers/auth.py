@@ -1,5 +1,6 @@
 """Authentication endpoints for account creation and login."""
 
+import asyncio
 import hashlib
 import logging
 import secrets
@@ -17,6 +18,8 @@ from fastapi import (
     status,
 )
 from fastapi.responses import RedirectResponse
+from google.auth.transport.requests import Request as GoogleAuthRequest
+from google.oauth2 import id_token as google_id_token
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -66,6 +69,12 @@ def facebook_is_configured() -> bool:
     return bool(
         settings.facebook_app_id and settings.facebook_app_secret
     )
+
+
+def google_is_configured() -> bool:
+    """Return whether the required Google OAuth settings are available."""
+
+    return bool(settings.google_client_id and settings.google_client_secret)
 
 
 def facebook_error_redirect(error_code: str) -> RedirectResponse:
@@ -139,6 +148,67 @@ async def fetch_facebook_profile(code: str) -> dict[str, str]:
         for value in (provider_user_id, provider_name, provider_email)
     ):
         raise ValueError("Facebook did not provide a complete user profile.")
+
+    return {
+        "provider_user_id": provider_user_id,
+        "name": provider_name,
+        "email": normalize_email(provider_email),
+    }
+
+
+def verify_google_id_token(raw_id_token: str) -> dict[str, object]:
+    """Verify a Google ID token using Google's signing certificates."""
+
+    return google_id_token.verify_oauth2_token(
+        raw_id_token,
+        GoogleAuthRequest(),
+        settings.google_client_id,
+    )
+
+
+async def fetch_google_profile(
+    code: str,
+    expected_nonce: str,
+) -> dict[str, str]:
+    """Exchange a Google code and return its verified basic profile."""
+
+    if not google_is_configured():
+        raise RuntimeError("Google OAuth is not configured.")
+
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        token_response = await client.post(
+            "https://oauth2.googleapis.com/token",
+            data={
+                "code": code,
+                "client_id": settings.google_client_id,
+                "client_secret": settings.google_client_secret,
+                "redirect_uri": settings.google_redirect_uri,
+                "grant_type": "authorization_code",
+            },
+        )
+        token_response.raise_for_status()
+        token_body = token_response.json()
+        raw_id_token = token_body.get("id_token")
+        if not isinstance(raw_id_token, str):
+            raise ValueError("Google did not return an ID token.")
+
+    profile = await asyncio.to_thread(
+        verify_google_id_token,
+        raw_id_token,
+    )
+    if profile.get("nonce") != expected_nonce:
+        raise ValueError("Google returned an invalid nonce.")
+
+    provider_user_id = profile.get("sub")
+    provider_name = profile.get("name")
+    provider_email = profile.get("email")
+    if (
+        not isinstance(provider_user_id, str)
+        or not isinstance(provider_name, str)
+        or not isinstance(provider_email, str)
+        or profile.get("email_verified") is not True
+    ):
+        raise ValueError("Google did not provide a verified user profile.")
 
     return {
         "provider_user_id": provider_user_id,
@@ -628,6 +698,182 @@ async def facebook_callback(
 
     redirect_response.delete_cookie(
         settings.facebook_state_cookie_name,
+        path="/",
+    )
+    return redirect_response
+
+
+@router.get("/google/login")
+async def google_login() -> RedirectResponse:
+    """Start Google OAuth and store state and nonce cookies."""
+
+    if not google_is_configured():
+        return google_error_redirect("google_not_configured")
+
+    state = secrets.token_urlsafe(32)
+    nonce = secrets.token_urlsafe(32)
+    query = urlencode(
+        {
+            "client_id": settings.google_client_id,
+            "redirect_uri": settings.google_redirect_uri,
+            "response_type": "code",
+            "scope": "openid email profile",
+            "state": state,
+            "nonce": nonce,
+        }
+    )
+    redirect_response = RedirectResponse(
+        url=f"https://accounts.google.com/o/oauth2/v2/auth?{query}",
+        status_code=status.HTTP_302_FOUND,
+    )
+    for cookie_name, cookie_value in (
+        (settings.google_state_cookie_name, state),
+        (settings.google_nonce_cookie_name, nonce),
+    ):
+        redirect_response.set_cookie(
+            key=cookie_name,
+            value=cookie_value,
+            max_age=600,
+            httponly=True,
+            secure=settings.session_cookie_secure,
+            samesite="lax",
+            path="/",
+        )
+    return redirect_response
+
+
+def google_error_redirect(error_code: str) -> RedirectResponse:
+    """Redirect the browser to Login with a safe Google error code."""
+
+    query = urlencode({"google_error": error_code})
+    return RedirectResponse(
+        url=f"{settings.frontend_origin}/login?{query}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@router.get("/google/callback")
+async def google_callback(
+    request: Request,
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+    session: AsyncSession = Depends(get_database_session),
+) -> RedirectResponse:
+    """Complete Google OAuth and create a normal Prononcia session."""
+
+    state_cookie = request.cookies.get(settings.google_state_cookie_name)
+    nonce_cookie = request.cookies.get(settings.google_nonce_cookie_name)
+    if (
+        not state
+        or not state_cookie
+        or not nonce_cookie
+        or not secrets.compare_digest(state, state_cookie)
+    ):
+        return google_error_redirect("google_state_invalid")
+
+    if error or not code:
+        return google_error_redirect("google_cancelled")
+
+    try:
+        profile = await fetch_google_profile(code, nonce_cookie)
+    except (httpx.HTTPError, ValueError, RuntimeError):
+        logger.exception("Google OAuth profile validation failed.")
+        return google_error_redirect("google_login_failed")
+
+    identity_result = await session.execute(
+        text(
+            """
+            SELECT users.id, users.name, users.email
+            FROM auth_identities
+            JOIN users ON users.id = auth_identities.user_id
+            WHERE auth_identities.provider = 'google'
+              AND auth_identities.provider_user_id = :provider_user_id
+              AND users.is_active = true
+            """
+        ),
+        {"provider_user_id": profile["provider_user_id"]},
+    )
+    user = identity_result.mappings().one_or_none()
+
+    try:
+        if user is None:
+            user_result = await session.execute(
+                text(
+                    """
+                    SELECT id, name, email
+                    FROM users
+                    WHERE email = :email AND is_active = true
+                    """
+                ),
+                {"email": profile["email"]},
+            )
+            user = user_result.mappings().one_or_none()
+
+        if user is None:
+            user_result = await session.execute(
+                text(
+                    """
+                    INSERT INTO users (name, email, password_hash)
+                    VALUES (:name, :email, NULL)
+                    RETURNING id, name, email
+                    """
+                ),
+                {
+                    "name": normalize_name(profile["name"]),
+                    "email": profile["email"],
+                },
+            )
+            user = user_result.mappings().one()
+
+        identity_exists = await session.execute(
+            text(
+                """
+                SELECT id
+                FROM auth_identities
+                WHERE provider = 'google'
+                  AND provider_user_id = :provider_user_id
+                """
+            ),
+            {"provider_user_id": profile["provider_user_id"]},
+        )
+        if identity_exists.scalar_one_or_none() is None:
+            await session.execute(
+                text(
+                    """
+                    INSERT INTO auth_identities (
+                        user_id, provider, provider_user_id, provider_email
+                    )
+                    VALUES (
+                        :user_id, 'google', :provider_user_id,
+                        :provider_email
+                    )
+                    """
+                ),
+                {
+                    "user_id": user["id"],
+                    "provider_user_id": profile["provider_user_id"],
+                    "provider_email": profile["email"],
+                },
+            )
+
+        redirect_response = RedirectResponse(
+            url=settings.frontend_origin,
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+        await create_session(session, str(user["id"]), redirect_response)
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+        logger.exception("Google identity could not be persisted.")
+        return google_error_redirect("google_account_link_failed")
+
+    redirect_response.delete_cookie(
+        settings.google_state_cookie_name,
+        path="/",
+    )
+    redirect_response.delete_cookie(
+        settings.google_nonce_cookie_name,
         path="/",
     )
     return redirect_response
