@@ -21,6 +21,13 @@ class Settings(BaseSettings):
     smtp_password: str | None = None
     smtp_from_email: str | None = None
     smtp_start_tls: bool = True
+    facebook_app_id: str | None = None
+    facebook_app_secret: str | None = None
+    facebook_redirect_uri: str = (
+        "http://localhost:8000/auth/facebook/callback"
+    )
+    facebook_graph_version: str = "v24.0"
+    facebook_state_cookie_name: str = "facebook_oauth_state"
 
     model_config = SettingsConfigDict(
         env_file=BACKEND_DIRECTORY / ".env",

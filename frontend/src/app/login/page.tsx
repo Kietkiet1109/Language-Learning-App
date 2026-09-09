@@ -1,11 +1,14 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { loginUser } from "@/lib/authApi";
+import {
+    getFacebookLoginUrl,
+    loginUser,
+} from "@/lib/authApi";
 
 export default function LoginPage() {
     const router = useRouter();
@@ -13,6 +16,29 @@ export default function LoginPage() {
     const [password, setPassword] = useState("");
     const [formError, setFormError] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isFacebookSubmitting, setIsFacebookSubmitting] = useState(false);
+
+    useEffect(() => {
+        const errorCode = new URLSearchParams(window.location.search).get(
+            "facebook_error",
+        );
+        const messages: Record<string, string> = {
+            facebook_not_configured:
+                "Facebook Login is not configured on the server.",
+            facebook_state_invalid:
+                "Facebook Login expired. Please try again.",
+            facebook_cancelled:
+                "Facebook Login was cancelled.",
+            facebook_login_failed:
+                "Facebook Login could not be completed.",
+            facebook_account_link_failed:
+                "Your Facebook account could not be linked.",
+        };
+        if (errorCode && messages[errorCode]) {
+            setFormError(messages[errorCode]);
+            window.history.replaceState({}, "", "/login");
+        }
+    }, []);
 
     const handleLoginSubmit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -31,6 +57,12 @@ export default function LoginPage() {
         } finally {
             setIsSubmitting(false);
         }
+    };
+
+    const handleFacebookLogin = () => {
+        setFormError("");
+        setIsFacebookSubmitting(true);
+        window.location.assign(getFacebookLoginUrl());
     };
 
     return (
@@ -118,7 +150,14 @@ export default function LoginPage() {
                     </div>
 
                     <div className="social-buttons">
-                        <button className="social-button" type="button">
+                        <button
+                            className="social-button"
+                            type="button"
+                            onClick={handleFacebookLogin}
+                            disabled={
+                                isSubmitting || isFacebookSubmitting
+                            }
+                        >
                             <Image
                                 className="social-icon"
                                 src="/facebook.svg"
@@ -126,7 +165,11 @@ export default function LoginPage() {
                                 width={22}
                                 height={22}
                             />
-                            <span>Login with Facebook</span>
+                            <span>
+                                {isFacebookSubmitting
+                                    ? "Connecting..."
+                                    : "Login with Facebook"}
+                            </span>
                         </button>
                         <button className="social-button" type="button">
                             <Image

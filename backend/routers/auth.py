@@ -4,7 +4,9 @@ import hashlib
 import logging
 import secrets
 from datetime import UTC, datetime, timedelta
+from urllib.parse import urlencode
 
+import httpx
 from aiosmtplib.errors import SMTPException
 from fastapi import (
     APIRouter,
@@ -14,6 +16,7 @@ from fastapi import (
     Response,
     status,
 )
+from fastapi.responses import RedirectResponse
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -55,6 +58,93 @@ def normalize_name(name: str) -> str:
     """Remove accidental whitespace from a user's display name."""
 
     return " ".join(name.split())
+
+
+def facebook_is_configured() -> bool:
+    """Return whether the required Facebook OAuth settings are available."""
+
+    return bool(
+        settings.facebook_app_id and settings.facebook_app_secret
+    )
+
+
+def facebook_error_redirect(error_code: str) -> RedirectResponse:
+    """Redirect the browser to Login with a safe, non-sensitive error code."""
+
+    query = urlencode({"facebook_error": error_code})
+    return RedirectResponse(
+        url=f"{settings.frontend_origin}/login?{query}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+async def fetch_facebook_profile(code: str) -> dict[str, str]:
+    """Exchange a Facebook code and return the verified basic profile."""
+
+    if not facebook_is_configured():
+        raise RuntimeError("Facebook OAuth is not configured.")
+
+    graph_base_url = (
+        f"https://graph.facebook.com/{settings.facebook_graph_version}"
+    )
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        token_response = await client.get(
+            f"{graph_base_url}/oauth/access_token",
+            params={
+                "client_id": settings.facebook_app_id,
+                "client_secret": settings.facebook_app_secret,
+                "redirect_uri": settings.facebook_redirect_uri,
+                "code": code,
+            },
+        )
+        token_response.raise_for_status()
+        token_body = token_response.json()
+        access_token = token_body.get("access_token")
+        if not isinstance(access_token, str):
+            raise ValueError("Facebook did not return an access token.")
+
+        app_access_token = (
+            f"{settings.facebook_app_id}|{settings.facebook_app_secret}"
+        )
+        debug_response = await client.get(
+            f"{graph_base_url}/debug_token",
+            params={
+                "input_token": access_token,
+                "access_token": app_access_token,
+            },
+        )
+        debug_response.raise_for_status()
+        debug_data = debug_response.json().get("data", {})
+        if (
+            debug_data.get("is_valid") is not True
+            or debug_data.get("app_id") != settings.facebook_app_id
+        ):
+            raise ValueError("Facebook returned an invalid access token.")
+
+        profile_response = await client.get(
+            f"{graph_base_url}/me",
+            params={
+                "fields": "id,name,email",
+                "access_token": access_token,
+            },
+        )
+        profile_response.raise_for_status()
+        profile = profile_response.json()
+
+    provider_user_id = profile.get("id")
+    provider_name = profile.get("name")
+    provider_email = profile.get("email")
+    if not all(
+        isinstance(value, str)
+        for value in (provider_user_id, provider_name, provider_email)
+    ):
+        raise ValueError("Facebook did not provide a complete user profile.")
+
+    return {
+        "provider_user_id": provider_user_id,
+        "name": provider_name,
+        "email": normalize_email(provider_email),
+    }
 
 
 async def create_session(
@@ -384,6 +474,163 @@ async def confirm_password_reset(
     )
     await session.commit()
     return PasswordResetMessage(message="Password reset successfully.")
+
+
+@router.get("/facebook/login")
+async def facebook_login() -> RedirectResponse:
+    """Start Facebook OAuth and store a short-lived CSRF state cookie."""
+
+    if not facebook_is_configured():
+        return facebook_error_redirect("facebook_not_configured")
+
+    state = secrets.token_urlsafe(32)
+    query = urlencode(
+        {
+            "client_id": settings.facebook_app_id,
+            "redirect_uri": settings.facebook_redirect_uri,
+            "state": state,
+            "scope": "public_profile,email",
+            "response_type": "code",
+        }
+    )
+    redirect_response = RedirectResponse(
+        url=(
+            f"https://www.facebook.com/"
+            f"{settings.facebook_graph_version}/dialog/oauth?{query}"
+        ),
+        status_code=status.HTTP_302_FOUND,
+    )
+    redirect_response.set_cookie(
+        key=settings.facebook_state_cookie_name,
+        value=state,
+        max_age=600,
+        httponly=True,
+        secure=settings.session_cookie_secure,
+        samesite="lax",
+        path="/",
+    )
+    return redirect_response
+
+
+@router.get("/facebook/callback")
+async def facebook_callback(
+    request: Request,
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+    session: AsyncSession = Depends(get_database_session),
+) -> RedirectResponse:
+    """Complete Facebook OAuth and create a normal Prononcia session."""
+
+    state_cookie = request.cookies.get(settings.facebook_state_cookie_name)
+    if (
+        not state
+        or not state_cookie
+        or not secrets.compare_digest(state, state_cookie)
+    ):
+        return facebook_error_redirect("facebook_state_invalid")
+
+    if error or not code:
+        return facebook_error_redirect("facebook_cancelled")
+
+    try:
+        profile = await fetch_facebook_profile(code)
+    except (httpx.HTTPError, ValueError, RuntimeError):
+        logger.exception("Facebook OAuth profile validation failed.")
+        return facebook_error_redirect("facebook_login_failed")
+
+    identity_result = await session.execute(
+        text(
+            """
+            SELECT users.id, users.name, users.email
+            FROM auth_identities
+            JOIN users ON users.id = auth_identities.user_id
+            WHERE auth_identities.provider = 'facebook'
+              AND auth_identities.provider_user_id = :provider_user_id
+              AND users.is_active = true
+            """
+        ),
+        {"provider_user_id": profile["provider_user_id"]},
+    )
+    user = identity_result.mappings().one_or_none()
+
+    try:
+        if user is None:
+            user_result = await session.execute(
+                text(
+                    """
+                    SELECT id, name, email
+                    FROM users
+                    WHERE email = :email AND is_active = true
+                    """
+                ),
+                {"email": profile["email"]},
+            )
+            user = user_result.mappings().one_or_none()
+
+        if user is None:
+            user_result = await session.execute(
+                text(
+                    """
+                    INSERT INTO users (name, email, password_hash)
+                    VALUES (:name, :email, NULL)
+                    RETURNING id, name, email
+                    """
+                ),
+                {
+                    "name": normalize_name(profile["name"]),
+                    "email": profile["email"],
+                },
+            )
+            user = user_result.mappings().one()
+
+        identity_exists = await session.execute(
+            text(
+                """
+                SELECT id
+                FROM auth_identities
+                WHERE provider = 'facebook'
+                  AND provider_user_id = :provider_user_id
+                """
+            ),
+            {"provider_user_id": profile["provider_user_id"]},
+        )
+        if identity_exists.scalar_one_or_none() is None:
+            await session.execute(
+                text(
+                    """
+                    INSERT INTO auth_identities (
+                        user_id, provider, provider_user_id, provider_email
+                    )
+                    VALUES (
+                        :user_id, 'facebook', :provider_user_id,
+                        :provider_email
+                    )
+                    """
+                ),
+                {
+                    "user_id": user["id"],
+                    "provider_user_id": profile["provider_user_id"],
+                    "provider_email": profile["email"],
+                },
+            )
+
+        redirect_response = RedirectResponse(
+            url=settings.frontend_origin,
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+        await create_session(session, str(user["id"]), redirect_response)
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+        logger.exception("Facebook identity could not be persisted.")
+        return facebook_error_redirect("facebook_account_link_failed")
+
+    redirect_response.delete_cookie(
+        settings.facebook_state_cookie_name,
+        path="/",
+    )
+    return redirect_response
 
 
 @router.post("/login", response_model=AuthResponse)

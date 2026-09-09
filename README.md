@@ -116,6 +116,10 @@ SMTP_USERNAME=<smtp-username>
 SMTP_PASSWORD=<smtp-password>
 SMTP_FROM_EMAIL=no-reply@example.com
 SMTP_START_TLS=true
+FACEBOOK_APP_ID=<meta-app-id>
+FACEBOOK_APP_SECRET=<meta-app-secret>
+FACEBOOK_REDIRECT_URI=http://localhost:8000/auth/facebook/callback
+FACEBOOK_GRAPH_VERSION=v24.0
 ```
 
 Password recovery requires working SMTP settings. For Gmail, use
