@@ -3,23 +3,28 @@
 import type { FormEvent } from "react";
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { signupUser } from "@/lib/authApi";
 
 const PASSWORD_PATTERN =
-    "(?=.*[a-z])(?=.*[A-Z])(?=.*[^A-Za-z0-9]).{8,}";
+    "(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,}";
 
 export default function SignupPage() {
+    const router = useRouter();
+    const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [confirmEmail, setConfirmEmail] = useState("");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
     const [formError, setFormError] = useState("");
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const isEmailMatch =
         confirmEmail.length > 0 && email === confirmEmail;
     const isPasswordMatch =
         confirmPassword.length > 0 && password === confirmPassword;
 
-    const handleSignupSubmit = (event: FormEvent<HTMLFormElement>) => {
+    const handleSignupSubmit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
 
         if (!isEmailMatch) {
@@ -33,13 +38,24 @@ export default function SignupPage() {
         }
 
         setFormError("");
+        setIsSubmitting(true);
+
+        try {
+            await signupUser(name, email, password);
+            router.push("/login");
+        } catch (error) {
+            setFormError(
+                error instanceof Error
+                    ? error.message
+                    : "Unable to create your account. Please try again.",
+            );
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     const passwordRules = [
-        {
-            label: "At least 8 characters",
-            isMet: password.length >= 8,
-        },
+        { label: "At least 8 characters", isMet: password.length >= 8 },
         {
             label: "At least 1 uppercase letter",
             isMet: /[A-Z]/.test(password),
@@ -48,10 +64,7 @@ export default function SignupPage() {
             label: "At least 1 lowercase letter",
             isMet: /[a-z]/.test(password),
         },
-        {
-            label: "At least 1 number",
-            isMet: /[0-9]/.test(password),
-        },
+        { label: "At least 1 number", isMet: /[0-9]/.test(password) },
         {
             label: "At least 1 symbol",
             isMet: /[^A-Za-z0-9]/.test(password),
@@ -62,9 +75,7 @@ export default function SignupPage() {
         <main className="signup-page">
             <section className="signup-card" aria-labelledby="signup-title">
                 <header className="signup-header">
-                    <span className="header-mark" aria-hidden="true">
-                        P
-                    </span>
+                    <span className="header-mark" aria-hidden="true">P</span>
                     <h1 id="signup-title">Sign Up</h1>
                     <span className="header-spacer" aria-hidden="true" />
                 </header>
@@ -73,8 +84,8 @@ export default function SignupPage() {
                     <div className="welcome-copy">
                         <p className="eyebrow">Start your practice</p>
                         <p className="signup-description">
-                            Create an account to build your
-                            pronunciation skills with Prononcia.
+                            Create an account to build your pronunciation
+                            skills.
                         </p>
                     </div>
 
@@ -90,6 +101,11 @@ export default function SignupPage() {
                                 type="text"
                                 autoComplete="name"
                                 placeholder="Enter your name"
+                                value={name}
+                                onChange={(event) => {
+                                    setName(event.target.value);
+                                    setFormError("");
+                                }}
                                 required
                             />
                         </div>
@@ -129,19 +145,6 @@ export default function SignupPage() {
                                 }
                                 required
                             />
-                            {confirmEmail.length > 0 && (
-                                <p
-                                    className={
-                                        isEmailMatch
-                                            ? "field-feedback success"
-                                            : "field-feedback error"
-                                    }
-                                >
-                                    {isEmailMatch
-                                        ? "Email addresses match."
-                                        : "Email addresses do not match."}
-                                </p>
-                            )}
                         </div>
 
                         <div className="form-field">
@@ -194,23 +197,14 @@ export default function SignupPage() {
                                 }
                                 required
                             />
-                            {confirmPassword.length > 0 && (
-                                <p
-                                    className={
-                                        isPasswordMatch
-                                            ? "field-feedback success"
-                                            : "field-feedback error"
-                                    }
-                                >
-                                    {isPasswordMatch
-                                        ? "Passwords match."
-                                        : "Passwords do not match."}
-                                </p>
-                            )}
                         </div>
 
-                        <button className="primary-button" type="submit">
-                            Sign up
+                        <button
+                            className="primary-button"
+                            type="submit"
+                            disabled={isSubmitting}
+                        >
+                            {isSubmitting ? "Creating account..." : "Sign up"}
                         </button>
                     </form>
 
