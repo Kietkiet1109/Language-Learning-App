@@ -1,26 +1,189 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+    --primary: #81d8d0;
+    --primary-dark: #4fb3ad;
+    --primary-light: #a8e6e1;
+    --tiffany-mist: #e6f7f5;
+    --background: #f7fcfb;
+    --white: #ffffff;
+    --text: #1f2933;
+    --secondary-text: #64748b;
+    --border: #d9e5e3;
+    --success: #5bc8a4;
+    --error: #e57373;
+    --focus-ring: rgba(79, 179, 173, 0.28);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+    box-sizing: border-box;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+    margin: 0;
+    background: var(--background);
+    color: var(--text);
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+a {
+    -webkit-tap-highlight-color: transparent;
+    color: inherit;
+}
+
+.menu-page {
+    display: grid;
+    min-height: 100svh;
+    place-items: center;
+    padding: 48px 24px;
+    background: radial-gradient(
+        circle at 8% 5%,
+        rgba(168, 230, 225, 0.4),
+        transparent 28%
+    ), var(--background);
+}
+
+.menu-card {
+    width: min(100%, 480px);
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    background: var(--white);
+    box-shadow: 0 18px 50px rgba(79, 179, 173, 0.15);
+}
+
+.menu-header {
+    display: grid;
+    grid-template-columns: 40px 1fr 40px;
+    align-items: center;
+    min-height: 88px;
+    padding: 0 28px;
+    background: linear-gradient(135deg, var(--tiffany-mist), #f2fbfa);
+    border-bottom: 1px solid var(--border);
+}
+
+.header-mark {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 11px;
+    background: var(--primary);
+    color: var(--white);
+    font-size: 18px;
+    font-weight: 800;
+}
+
+.menu-header h1 {
+    margin: 0;
+    color: var(--text);
+    font-size: 30px;
+    font-weight: 700;
+    text-align: center;
+    letter-spacing: -0.04em;
+}
+
+.menu-list {
+    display: grid;
+    gap: 16px;
+    margin: 0;
+    padding: 34px 48px 48px;
+    list-style: none;
+}
+
+.menu-option {
+    display: flex;
+    min-height: 68px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0 20px;
+    border: 1px solid var(--secondary-text);
+    border-radius: 10px;
+    background: var(--white);
+    color: var(--text);
+    font-size: clamp(18px, 2.2vw, 22px);
+    font-weight: 500;
+    text-decoration: none;
+    transition: background-color 160ms ease, border-color 160ms ease,
+        box-shadow 160ms ease, transform 160ms ease;
+}
+
+.menu-option:hover {
+    background: var(--tiffany-mist);
+    border-color: var(--primary-dark);
+    box-shadow: 0 6px 16px rgba(79, 179, 173, 0.12);
+    transform: translateY(-1px);
+}
+
+.menu-option:focus-visible {
+    outline: 3px solid var(--primary);
+    outline-offset: 3px;
+    box-shadow: 0 0 0 5px var(--focus-ring);
+}
+
+.menu-option:active {
+    transform: translateY(1px);
+}
+
+.info-button {
+    display: inline-flex;
+    width: 22px;
+    height: 22px;
+    flex: 0 0 22px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--secondary-text);
+    border-radius: 50%;
+    color: var(--secondary-text);
+    font-family: Georgia, serif;
+    font-size: 14px;
+    font-weight: 700;
+    font-style: italic;
+}
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    padding: 0;
+    margin: -1px;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+@media (max-width: 420px) {
+    .menu-page {
+        min-height: 100svh;
+        padding: 16px;
+    }
+
+    .menu-card {
+        border-radius: 16px;
+    }
+
+    .menu-header {
+        min-height: 76px;
+        padding: 0 20px;
+    }
+
+    .menu-header h1 {
+        font-size: 27px;
+    }
+
+    .menu-list {
+        gap: 14px;
+        padding: 24px;
+    }
+
+    .menu-description {
+        margin: 24px 24px 0;
+    }
+
+    .menu-option {
+        min-height: 60px;
+        padding: 0 16px;
+    }
 }
