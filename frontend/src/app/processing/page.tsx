@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 const PROCESSING_STAGES = [
     {
@@ -29,6 +30,7 @@ function getProcessingStage(progress: number) {
 }
 
 export default function ProcessingPage() {
+    const router = useRouter();
     const [progress, setProgress] = useState(12);
     const processingStage = getProcessingStage(progress);
 
@@ -45,6 +47,12 @@ export default function ProcessingPage() {
 
         return () => window.clearInterval(timer);
     }, []);
+
+    useEffect(() => {
+        if (progress >= 100) {
+            router.replace("/record");
+        }
+    }, [progress, router]);
 
     return (
         <main className="processing-page">
