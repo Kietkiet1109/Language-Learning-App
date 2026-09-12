@@ -1,8 +1,11 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export default function LearningPage() {
+    const router = useRouter();
     const [videoLink, setVideoLink] = useState("");
     const [formError, setFormError] = useState("");
 
@@ -15,6 +18,9 @@ export default function LearningPage() {
         }
 
         setFormError("");
+        router.push(
+            `/processing?video=${encodeURIComponent(videoLink.trim())}`
+        );
     };
 
     return (
@@ -24,9 +30,13 @@ export default function LearningPage() {
                 aria-labelledby="learning-title"
             >
                 <header className="learning-header">
-                    <span className="header-mark" aria-hidden="true">
-                        P
-                    </span>
+                    <Link
+                        className="header-mark"
+                        href="/"
+                        aria-label="Return to Main Page"
+                    >
+                        <span aria-hidden="true">←</span>
+                    </Link>
                     <h1>Start Learning</h1>
                     <span aria-hidden="true" />
                 </header>
