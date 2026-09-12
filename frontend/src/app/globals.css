@@ -154,6 +154,138 @@ a {
     border: 0;
 }
 
+.learning-page {
+    display: grid;
+    min-height: 100svh;
+    place-items: center;
+    padding: 48px 24px;
+    background: radial-gradient(
+        circle at 8% 5%,
+        rgba(168, 230, 225, 0.4),
+        transparent 28%
+    ), var(--background);
+}
+
+.learning-card {
+    width: min(100%, 540px);
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    background: var(--white);
+    box-shadow: 0 18px 50px rgba(79, 179, 173, 0.15);
+}
+
+.learning-header {
+    display: grid;
+    grid-template-columns: 40px 1fr 40px;
+    align-items: center;
+    min-height: 88px;
+    padding: 0 28px;
+    background: linear-gradient(135deg, var(--tiffany-mist), #f2fbfa);
+    border-bottom: 1px solid var(--border);
+}
+
+.learning-header h1 {
+    margin: 0;
+    color: var(--text);
+    font-size: 30px;
+    font-weight: 700;
+    text-align: center;
+    letter-spacing: -0.04em;
+}
+
+.learning-form {
+    display: grid;
+    gap: 12px;
+    padding: 40px 48px 48px;
+}
+
+.learning-intro {
+    margin-bottom: 12px;
+}
+
+.learning-intro h2 {
+    margin: 0 0 10px;
+    color: var(--text);
+    font-size: clamp(30px, 5vw, 40px);
+    line-height: 1.12;
+    text-align: center;
+    letter-spacing: -0.04em;
+}
+
+.learning-intro p {
+    margin: 0;
+    color: var(--secondary-text);
+    font-size: 16px;
+    line-height: 1.5;
+    text-align: center;
+}
+
+.learning-form label {
+    color: var(--text);
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.learning-form input {
+    width: 100%;
+    min-height: 56px;
+    padding: 0 16px;
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    background: #eaf2fc;
+    color: var(--text);
+    font: inherit;
+    font-size: 16px;
+}
+
+.learning-form input::placeholder {
+    color: var(--secondary-text);
+}
+
+.learning-form input:focus-visible {
+    outline: 3px solid var(--primary);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 5px var(--focus-ring);
+}
+
+.form-error {
+    margin: 0;
+    color: var(--error);
+    font-size: 14px;
+}
+
+.learning-button {
+    min-height: 56px;
+    margin-top: 12px;
+    border: 0;
+    border-radius: 11px;
+    background: var(--primary-dark);
+    color: var(--white);
+    cursor: pointer;
+    font: inherit;
+    font-size: 17px;
+    font-weight: 700;
+    transition: background-color 160ms ease, box-shadow 160ms ease,
+        transform 160ms ease;
+}
+
+.learning-button:hover {
+    background: #3e9e98;
+    box-shadow: 0 8px 18px rgba(79, 179, 173, 0.22);
+    transform: translateY(-1px);
+}
+
+.learning-button:focus-visible {
+    outline: 3px solid var(--primary);
+    outline-offset: 3px;
+    box-shadow: 0 0 0 5px var(--focus-ring);
+}
+
+.learning-button:active {
+    transform: translateY(1px);
+}
+
 @media (max-width: 420px) {
     .menu-page {
         min-height: 100svh;
@@ -161,6 +293,15 @@ a {
     }
 
     .menu-card {
+        border-radius: 16px;
+    }
+
+    .learning-page {
+        min-height: 100svh;
+        padding: 16px;
+    }
+
+    .learning-card {
         border-radius: 16px;
     }
 
@@ -185,5 +326,18 @@ a {
     .menu-option {
         min-height: 60px;
         padding: 0 16px;
+    }
+
+    .learning-header {
+        min-height: 76px;
+        padding: 0 20px;
+    }
+
+    .learning-header h1 {
+        font-size: 27px;
+    }
+
+    .learning-form {
+        padding: 32px 24px 36px;
     }
 }

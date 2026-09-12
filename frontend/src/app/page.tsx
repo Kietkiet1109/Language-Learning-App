@@ -8,7 +8,7 @@ interface MenuOptionProps {
 
 const MENU_OPTIONS: MenuOptionProps[] = [
     {
-        href: "/learning",
+        href: "/parselink",
         label: "Start Learning",
         description: "Begin a new pronunciation lesson",
     },
