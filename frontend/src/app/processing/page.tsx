@@ -32,16 +32,63 @@ function getProcessingStage(progress: number) {
 export default function ProcessingPage() {
     const router = useRouter();
     const [progress, setProgress] = useState(12);
+    const [processingError, setProcessingError] = useState("");
     const processingStage = getProcessingStage(progress);
 
     useEffect(() => {
+        const videoUrl = new URLSearchParams(window.location.search).get(
+            "video"
+        );
+
+        if (!videoUrl) {
+            setProcessingError("No video link was provided.");
+            return undefined;
+        }
+
+        const processVideo = async () => {
+            try {
+                const apiUrl = process.env.NEXT_PUBLIC_API_URL ??
+                    "http://localhost:8000";
+                const response = await fetch(`${apiUrl}/process-video`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    credentials: "include",
+                    body: JSON.stringify({ url: videoUrl }),
+                });
+
+                if (!response.ok) {
+                    const errorBody = await response.json().catch(() => null);
+                    throw new Error(
+                        errorBody?.detail ?? "Video processing failed."
+                    );
+                }
+
+                const processedVideo = await response.json();
+                window.sessionStorage.setItem(
+                    "prononcia.processedVideo",
+                    JSON.stringify(processedVideo)
+                );
+                setProgress(100);
+            } catch (error) {
+                setProcessingError(
+                    error instanceof Error
+                        ? error.message
+                        : "Video processing failed."
+                );
+            }
+        };
+
+        processVideo();
+
         const timer = window.setInterval(() => {
             setProgress((currentProgress) => {
-                if (currentProgress >= 100) {
+                if (currentProgress >= 90) {
                     return currentProgress;
                 }
 
-                return Math.min(currentProgress + 2, 100);
+                return Math.min(currentProgress + 2, 90);
             });
         }, 220);
 
@@ -73,6 +120,12 @@ export default function ProcessingPage() {
                 </header>
 
                 <div className="processing-content" aria-live="polite">
+                    {processingError && (
+                        <p className="form-error" role="alert">
+                            {processingError}
+                        </p>
+                    )}
+
                     <div
                         className="processing-spinner"
                         role="status"
