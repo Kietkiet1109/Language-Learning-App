@@ -166,10 +166,10 @@ a {
     justify-content: space-between;
     gap: 12px;
     padding: 0 20px;
-    border: 1px solid var(--secondary-text);
-    border-radius: 10px;
-    background: var(--white);
-    color: var(--text);
+    border: 3px solid var(--primary);
+    border-radius: 11px;
+    background: var(--primary-dark);
+    color: var(--white);
     font-size: clamp(18px, 2.2vw, 22px);
     font-weight: 500;
     text-decoration: none;
@@ -178,14 +178,13 @@ a {
 }
 
 .menu-option:hover {
-    background: var(--tiffany-mist);
+    background: #3d9f99;
     border-color: var(--primary-dark);
     box-shadow: 0 6px 16px rgba(79, 179, 173, 0.12);
     transform: translateY(-1px);
 }
 
 .menu-option:focus-visible {
-    outline: 3px solid var(--primary);
     outline-offset: 3px;
     box-shadow: 0 0 0 5px var(--focus-ring);
 }
@@ -201,9 +200,9 @@ a {
     flex: 0 0 22px;
     align-items: center;
     justify-content: center;
-    border: 1px solid var(--secondary-text);
+    border: 1px solid var(--white);
     border-radius: 50%;
-    color: var(--secondary-text);
+    color: var(--white);
     font-family: Georgia, serif;
     font-size: 14px;
     font-weight: 700;

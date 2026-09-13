@@ -45,16 +45,70 @@ export default function ProcessingPage() {
             return undefined;
         }
 
+        let isCancelled = false;
+        const abortController = new AbortController();
+
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL ??
+            "http://localhost:8000";
+
+        const saveCompletedVideo = (processedVideo: unknown) => {
+            if (isCancelled) {
+                return;
+            }
+
+            window.sessionStorage.setItem(
+                "prononcia.processedVideo",
+                JSON.stringify(processedVideo)
+            );
+            setProgress(100);
+        };
+
+        const waitForProcessingJob = async (jobId: string) => {
+            while (!isCancelled) {
+                await new Promise((resolve) => {
+                    window.setTimeout(resolve, 1200);
+                });
+
+                if (isCancelled) {
+                    return;
+                }
+
+                const response = await fetch(
+                    `${apiUrl}/process-video/${jobId}`,
+                    {
+                        credentials: "include",
+                        signal: abortController.signal,
+                    }
+                );
+                const processedVideo = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(
+                        processedVideo?.detail ??
+                            "Video processing failed."
+                    );
+                }
+
+                if (processedVideo.processing_status === "failed") {
+                    throw new Error("Video processing failed.");
+                }
+
+                if (processedVideo.processing_status === "ready") {
+                    saveCompletedVideo(processedVideo);
+                    return;
+                }
+            }
+        };
+
         const processVideo = async () => {
             try {
-                const apiUrl = process.env.NEXT_PUBLIC_API_URL ??
-                    "http://localhost:8000";
                 const response = await fetch(`${apiUrl}/process-video`, {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
                     },
                     credentials: "include",
+                    signal: abortController.signal,
                     body: JSON.stringify({ url: videoUrl }),
                 });
 
@@ -66,17 +120,27 @@ export default function ProcessingPage() {
                 }
 
                 const processedVideo = await response.json();
-                window.sessionStorage.setItem(
-                    "prononcia.processedVideo",
-                    JSON.stringify(processedVideo)
-                );
-                setProgress(100);
+                if (processedVideo.processing_status === "ready") {
+                    saveCompletedVideo(processedVideo);
+                    return;
+                }
+
+                if (processedVideo.processing_status === "processing") {
+                    await waitForProcessingJob(
+                        processedVideo.processing_job_id
+                    );
+                    return;
+                }
+
+                throw new Error("Video processing failed.");
             } catch (error) {
-                setProcessingError(
-                    error instanceof Error
-                        ? error.message
-                        : "Video processing failed."
-                );
+                if (!isCancelled) {
+                    setProcessingError(
+                        error instanceof Error
+                            ? error.message
+                            : "Video processing failed."
+                    );
+                }
             }
         };
 
@@ -92,7 +156,11 @@ export default function ProcessingPage() {
             });
         }, 220);
 
-        return () => window.clearInterval(timer);
+        return () => {
+            isCancelled = true;
+            abortController.abort();
+            window.clearInterval(timer);
+        };
     }, []);
 
     useEffect(() => {

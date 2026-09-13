@@ -4,6 +4,35 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
+function isYouTubeUrl(value: string) {
+    try {
+        const url = new URL(value);
+        const hostname = url.hostname.toLowerCase();
+        const isYouTubeHost = [
+            "youtube.com",
+            "www.youtube.com",
+            "m.youtube.com",
+            "youtu.be",
+            "www.youtu.be",
+        ].includes(hostname);
+
+        if (!isYouTubeHost) {
+            return false;
+        }
+
+        if (hostname.includes("youtu.be")) {
+            return Boolean(url.pathname.slice(1));
+        }
+
+        return Boolean(
+            url.searchParams.get("v") ||
+                /\/(shorts|embed|live)\/[^/]+/.test(url.pathname)
+        );
+    } catch {
+        return false;
+    }
+}
+
 export default function LearningPage() {
     const router = useRouter();
     const [videoLink, setVideoLink] = useState("");
@@ -12,14 +41,20 @@ export default function LearningPage() {
     const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
 
-        if (!videoLink.trim()) {
+        const normalizedVideoLink = videoLink.trim();
+        if (!normalizedVideoLink) {
             setFormError("Please enter a YouTube video link to continue.");
+            return;
+        }
+
+        if (!isYouTubeUrl(normalizedVideoLink)) {
+            setFormError("Please enter a valid YouTube video link.");
             return;
         }
 
         setFormError("");
         router.push(
-            `/processing?video=${encodeURIComponent(videoLink.trim())}`
+            `/processing?video=${encodeURIComponent(normalizedVideoLink)}`
         );
     };
 
