@@ -54,7 +54,7 @@ a {
 
 .menu-header {
     display: grid;
-    grid-template-columns: 40px 1fr 40px;
+    grid-template-columns: 40px 1fr auto;
     align-items: center;
     min-height: 88px;
     padding: 0 28px;
@@ -81,6 +81,74 @@ a {
     font-weight: 700;
     text-align: center;
     letter-spacing: -0.04em;
+}
+
+.logout-button {
+    justify-self: end;
+    min-height: 34px;
+    width: fit-content;
+    padding: 0 10px;
+
+    border: 0;
+    border-radius: 11px;
+    background: var(--primary-dark);
+    color: var(--white);
+    cursor: pointer;
+
+    font: inherit;
+    font-size: 16px;
+    font-weight: 700;
+
+    transition: background-color 160ms ease, color 160ms ease;
+    box-shadow: 0 8px 16px rgba(79, 179, 173, 0.2);
+}
+
+.logout-button:hover,
+.logout-button:focus-visible {
+    background: #3d9f99;
+    box-shadow: 0 10px 20px rgba(79, 179, 173, 0.28);
+    transform: translateY(-1px);
+}
+
+.logout-button:disabled {
+    cursor: wait;
+    opacity: 0.7;
+}
+
+.menu-content {
+    padding: 34px 38px 36px;
+}
+
+.welcome-copy {
+    margin-bottom: 26px;
+}
+
+.eyebrow {
+    margin: 0 0 7px;
+    color: var(--primary-dark);
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.menu-description {
+    margin: 0;
+    color: var(--secondary-text);
+    font-size: 15px;
+    line-height: 1.5;
+}
+
+.menu-loading-card {
+    min-height: 180px;
+}
+
+.menu-loading {
+    display: grid;
+    min-height: 180px;
+    place-items: center;
+    color: var(--secondary-text);
+    font-size: 16px;
 }
 
 .menu-list {
@@ -787,13 +855,13 @@ a {
         font-size: 27px;
     }
 
+    .menu-content {
+        padding: 28px 22px 30px;
+    }
+
     .menu-list {
         gap: 14px;
         padding: 24px;
-    }
-
-    .menu-description {
-        margin: 24px 24px 0;
     }
 
     .menu-option {
