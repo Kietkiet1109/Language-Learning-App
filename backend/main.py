@@ -17,12 +17,16 @@ from database import dispose_database_engine, get_database_session
 from video_processing.schemas import (
     ProcessVideoRequest,
     ProcessVideoResponse,
+    ResegmentationResponse,
+    VideoPartsResponse,
 )
 from video_processing.service import (
     InvalidVideoUrlError,
     UnsupportedVideoUrlError,
     get_processing_status,
+    get_video_parts,
     process_and_persist_video,
+    resegment_stored_video,
 )
 
 
@@ -110,3 +114,41 @@ async def processing_status_endpoint(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Processing job was not found.",
         ) from error
+
+
+@app.get(
+    "/video/{video_id}/parts",
+    response_model=VideoPartsResponse,
+)
+async def video_parts_endpoint(
+    video_id: str,
+    session: AsyncSession = Depends(get_database_session),
+) -> VideoPartsResponse:
+    """Return the three learning parts for a completed video."""
+
+    result = await get_video_parts(session, video_id)
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Completed video lesson was not found.",
+        )
+    return result
+
+
+@app.post(
+    "/video/{video_id}/resegment",
+    response_model=ResegmentationResponse,
+)
+async def resegment_video_endpoint(
+    video_id: str,
+    session: AsyncSession = Depends(get_database_session),
+) -> ResegmentationResponse:
+    """Regenerate stored sentence boundaries for a completed video."""
+
+    result = await resegment_stored_video(session, video_id)
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Completed video lesson was not found.",
+        )
+    return result
