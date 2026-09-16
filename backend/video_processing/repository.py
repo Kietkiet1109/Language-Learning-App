@@ -295,7 +295,8 @@ async def load_completed_result(
             await session.execute(
                 text(
                     """
-                    SELECT sequence_number, start_seconds, end_seconds, text
+                    SELECT sequence_number, start_seconds, end_seconds, text,
+                           english_text
                     FROM transcript_segments
                     WHERE transcript_id = :transcript_id
                     ORDER BY sequence_number
@@ -311,6 +312,7 @@ async def load_completed_result(
             start_seconds=row["start_seconds"],
             end_seconds=row["end_seconds"],
             french=row["text"],
+            english=row["english_text"],
         )
         for row in rows
     ]
@@ -318,7 +320,12 @@ async def load_completed_result(
         video_id=video_id,
         source_url=record.source_url,
         duration_seconds=record.duration_seconds,
-        transcript={"french": None, "english": None},
+        transcript={
+            "french": " ".join(segment.french for segment in segments),
+            "english": " ".join(
+                segment.english or "" for segment in segments
+            ).strip(),
+        },
         segments=segments,
         transcript_source=record.transcript_source or "stored",
         media_source_id=record.media_source_id,
@@ -348,7 +355,8 @@ async def load_video_parts(
                         transcript_segments.sequence_number,
                         transcript_segments.start_seconds,
                         transcript_segments.end_seconds,
-                        transcript_segments.text
+                        transcript_segments.text,
+                        transcript_segments.english_text
                     FROM media_sources
                     JOIN transcripts
                         ON transcripts.media_source_id = media_sources.id
@@ -389,6 +397,7 @@ async def load_video_parts(
             start_seconds=row["start_seconds"],
             end_seconds=row["end_seconds"],
             french=row["text"],
+            english=row["english_text"],
         )
         for row in rows
     ]
@@ -476,7 +485,8 @@ async def load_transcript_segments(
             await session.execute(
                 text(
                     """
-                    SELECT sequence_number, start_seconds, end_seconds, text
+                    SELECT sequence_number, start_seconds, end_seconds, text,
+                           english_text
                     FROM transcript_segments
                     WHERE transcript_id = :transcript_id
                     ORDER BY sequence_number
@@ -492,6 +502,7 @@ async def load_transcript_segments(
             start_seconds=row["start_seconds"],
             end_seconds=row["end_seconds"],
             french=row["text"],
+            english=row["english_text"],
         )
         for row in rows
     ]
@@ -536,12 +547,13 @@ async def save_resegmented_transcript(
                     """
                     INSERT INTO transcript_segments (
                         id, transcript_id, sequence_number, text,
-                        normalized_text, start_seconds, end_seconds
+                        normalized_text, start_seconds, end_seconds,
+                        english_text
                     )
                     VALUES (
                         :segment_id, :transcript_id, :sequence_number,
                         :segment_text, :normalized_text, :start_seconds,
-                        :end_seconds
+                        :end_seconds, :english_text
                     )
                     """
                 ),
@@ -555,6 +567,7 @@ async def save_resegmented_transcript(
                     ),
                     "start_seconds": segment.start_seconds,
                     "end_seconds": segment.end_seconds,
+                    "english_text": segment.english,
                 },
             )
     return transcript_id
@@ -599,12 +612,13 @@ async def save_transcription_result(
                     """
                     INSERT INTO transcript_segments (
                         id, transcript_id, sequence_number, text,
-                        normalized_text, start_seconds, end_seconds
+                        normalized_text, start_seconds, end_seconds,
+                        english_text
                     )
                     VALUES (
                         :segment_id, :transcript_id, :sequence_number,
                         :segment_text, :normalized_text, :start_seconds,
-                        :end_seconds
+                        :end_seconds, :english_text
                     )
                     """
                 ),
@@ -618,6 +632,7 @@ async def save_transcription_result(
                     ),
                     "start_seconds": segment.start_seconds,
                     "end_seconds": segment.end_seconds,
+                    "english_text": segment.english,
                 },
             )
         await session.execute(

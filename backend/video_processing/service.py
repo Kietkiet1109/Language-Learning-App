@@ -36,6 +36,7 @@ from video_processing.schemas import (
     VideoPart,
     VideoPartsResponse,
 )
+from video_processing.translation import translate_segments
 
 
 LOGGER = logging.getLogger(__name__)
@@ -64,6 +65,14 @@ def build_transcript_segments(
         )
         for index, sentence in enumerate(sentence_targets, start=1)
     ]
+
+
+def translate_transcript_segments(
+    segments: list[TranscriptSegment],
+) -> list[TranscriptSegment]:
+    """Translate each finalized sentence without changing its timing."""
+
+    return translate_segments(segments)
 
 
 def log_segmentation_diagnostics(
@@ -244,6 +253,7 @@ def process_video(url: str) -> ProcessVideoResponse:
         else:
             raise RuntimeError("No transcript source was available.")
         segments = build_transcript_segments(french_segments)
+        segments = translate_transcript_segments(segments)
         log_segmentation_diagnostics(
             transcript_source,
             french_segments,
@@ -260,7 +270,9 @@ def process_video(url: str) -> ProcessVideoResponse:
         ),
         transcript={
             "french": french_transcript,
-            "english": None,
+            "english": " ".join(
+                segment.english or "" for segment in segments
+            ).strip(),
         },
         segments=segments,
         transcript_source=transcript_source,

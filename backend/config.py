@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     whisper_model: str = "small"
     whisper_device: str = "cpu"
     whisper_compute_type: str = "int8"
+    translation_model: str = "Helsinki-NLP/opus-mt-fr-en"
+    translation_device: str = "cpu"
 
     model_config = SettingsConfigDict(
         env_file=BACKEND_DIRECTORY / ".env",

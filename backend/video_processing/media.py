@@ -116,22 +116,16 @@ def download_media(
 ) -> tuple[Path | None, Path | None, dict[str, Any]]:
     """Download and convert the source audio for Whisper transcription."""
 
-    probe_options = {
-        "quiet": True,
-        "no_warnings": True,
-        "skip_download": True,
-    }
-    with YoutubeDL(probe_options) as downloader:
-        metadata = downloader.extract_info(url, download=False)
-
     output_template = str(output_directory / "source.%(ext)s")
 
     options = {
-        "format": "bestaudio/best",
+        "format": "bestaudio[ext=m4a]/bestaudio/best",
         "noplaylist": True,
         "outtmpl": output_template,
         "quiet": True,
         "no_warnings": True,
+        "retries": 3,
+        "fragment_retries": 3,
         "postprocessors": [
             {
                 "key": "FFmpegExtractAudio",
@@ -141,7 +135,7 @@ def download_media(
     }
 
     with YoutubeDL(options) as downloader:
-        downloader.extract_info(url, download=True)
+        metadata = downloader.extract_info(url, download=True)
 
     audio_path = output_directory / "source.wav"
     if not audio_path.exists():

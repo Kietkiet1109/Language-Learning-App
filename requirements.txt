@@ -18,6 +18,11 @@ pysubs2>=1.8.0
 # Transcript normalization and similarity scoring
 rapidfuzz>=3.13.0
 
+# Transcript translation
+torch>=2.5.0
+transformers>=4.46.0,<5.0.0
+sentencepiece>=0.2.0
+
 # HTTP clients and environment-file support
 httpx>=0.28.1
 python-dotenv>=1.1.0

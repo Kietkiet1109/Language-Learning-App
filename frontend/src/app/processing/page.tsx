@@ -31,7 +31,7 @@ function getProcessingStage(progress: number) {
 
 export default function ProcessingPage() {
     const router = useRouter();
-    const [progress, setProgress] = useState(12);
+    const [progress, setProgress] = useState(0);
     const [processingError, setProcessingError] = useState("");
     const processingStage = getProcessingStage(progress);
 
@@ -148,11 +148,11 @@ export default function ProcessingPage() {
 
         const timer = window.setInterval(() => {
             setProgress((currentProgress) => {
-                if (currentProgress >= 90) {
+                if (currentProgress >= 99) {
                     return currentProgress;
                 }
 
-                return Math.min(currentProgress + 2, 90);
+                return Math.min(currentProgress + 1, 99);
             });
         }, 220);
 

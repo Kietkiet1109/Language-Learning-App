@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 from uuid import UUID
@@ -28,6 +29,9 @@ from video_processing.service import (
     process_and_persist_video,
     resegment_stored_video,
 )
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -91,6 +95,10 @@ async def process_video_endpoint(
             detail="The YouTube URL does not contain a video identifier.",
         ) from error
     except Exception as error:
+        LOGGER.exception(
+            "Video processing failed for video_id=%s",
+            request.url,
+        )
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="The video could not be processed.",

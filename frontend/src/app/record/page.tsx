@@ -522,7 +522,6 @@ export default function RecordPage() {
                                 className="primary-action"
                                 type="button"
                                 onClick={handleNext}
-                                disabled={!hasResult}
                             >
                                 Next
                                 <span aria-hidden="true">→</span>
@@ -534,7 +533,6 @@ export default function RecordPage() {
                                 className="primary-action"
                                 type="button"
                                 onClick={handleDone}
-                                disabled={!hasResult}
                             >
                                 Done
                                 <span aria-hidden="true">✓</span>
