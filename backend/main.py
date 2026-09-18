@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import AsyncIterator
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import (
     Depends,
@@ -37,8 +38,14 @@ from video_processing.service import (
     process_and_persist_video,
     resegment_stored_video,
 )
-from record_processing.pronunciation import submit_pronunciation
-from record_processing.repository import PronunciationInputError
+from record_processing.pronunciation import (
+    evaluate_recording,
+    submit_pronunciation,
+)
+from record_processing.repository import (
+    ALLOWED_AUDIO_TYPES,
+    PronunciationInputError,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -200,3 +207,52 @@ async def submit_pronunciation_endpoint(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="The pronunciation could not be evaluated.",
         ) from error
+
+
+@app.post("/evaluate-pronunciation")
+async def evaluate_pronunciation_endpoint(
+    audio: UploadFile = File(...),
+    target_sentence: str = Form(...),
+) -> dict[str, object]:
+    """Evaluate a recording without requiring lesson persistence metadata."""
+
+    content_type = (audio.content_type or "").split(";", 1)[0].strip()
+    if content_type.lower() not in ALLOWED_AUDIO_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="The recording must be a supported audio file.",
+        )
+    if not target_sentence.strip():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="The practice sentence is invalid.",
+        )
+
+    recording_bytes = await audio.read(settings.max_recording_bytes + 1)
+    if not recording_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="The recording is empty.",
+        )
+    if len(recording_bytes) > settings.max_recording_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="The recording is too large.",
+        )
+
+    recording_path = Path(settings.recording_directory)
+    recording_path.mkdir(parents=True, exist_ok=True)
+    temporary_path = recording_path / f"{uuid4()}.webm"
+    temporary_path.write_bytes(recording_bytes)
+
+    try:
+        _, result = evaluate_recording(temporary_path, target_sentence)
+        return result
+    except Exception as error:
+        LOGGER.exception("Could not evaluate pronunciation")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="The pronunciation could not be evaluated.",
+        ) from error
+    finally:
+        temporary_path.unlink(missing_ok=True)

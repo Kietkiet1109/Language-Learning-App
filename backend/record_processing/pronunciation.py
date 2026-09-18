@@ -48,10 +48,9 @@ async def submit_pronunciation(
     recording_path = recording_directory / recording_name
     recording_path.write_bytes(recording_bytes)
 
-    _, learner_transcription = transcribe_audio(recording_path)
-    result = evaluate_transcription(
+    learner_transcription, result = evaluate_recording(
+        recording_path,
         target_sentence,
-        learner_transcription,
     )
     await save_pronunciation_result(
         session=session,
@@ -65,3 +64,14 @@ async def submit_pronunciation(
         missed_words=result["missed_words"],
     )
     return result
+
+
+def evaluate_recording(
+    recording_path: Path,
+    target_sentence: str,
+) -> tuple[str, dict[str, object]]:
+    """Transcribe one recording and evaluate it against its target sentence."""
+
+    _, learner_transcription = transcribe_audio(recording_path)
+    result = evaluate_transcription(target_sentence, learner_transcription)
+    return learner_transcription, result
