@@ -137,3 +137,17 @@ def build_feedback(
             "Good attempt. Repeat the sentence once more for a clearer match."
         )
     return "Listen once more, then repeat the sentence slowly."
+
+
+def build_overall_feedback(score: int) -> str:
+    """Return session feedback appropriate to the overall accuracy."""
+
+    if score >= 90:
+        return (
+            "Excellent work! You pronounced almost every sentence correctly."
+        )
+    if score >= 75:
+        return "Good job! You pronounced most sentences correctly."
+    if score >= 50:
+        return "Good effort! Review the missed sentences and try again."
+    return "Keep practicing! Listen carefully and repeat each sentence slowly."

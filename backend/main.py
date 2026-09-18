@@ -28,6 +28,8 @@ from video_processing.schemas import (
     ProcessVideoRequest,
     ProcessVideoResponse,
     ResegmentationResponse,
+    SaveResultRequest,
+    SaveResultResponse,
     VideoPartsResponse,
 )
 from video_processing.service import (
@@ -45,6 +47,7 @@ from record_processing.pronunciation import (
 from record_processing.repository import (
     ALLOWED_AUDIO_TYPES,
     PronunciationInputError,
+    save_practice_result,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -256,3 +259,28 @@ async def evaluate_pronunciation_endpoint(
         ) from error
     finally:
         temporary_path.unlink(missing_ok=True)
+
+
+@app.post(
+    "/save-result",
+    response_model=SaveResultResponse,
+)
+async def save_result_endpoint(
+    request: SaveResultRequest,
+    session: AsyncSession = Depends(get_database_session),
+) -> SaveResultResponse:
+    """Save a completed lesson and return its overall learner feedback."""
+
+    try:
+        return await save_practice_result(session, request.video_id)
+    except PronunciationInputError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(error),
+        ) from error
+    except Exception as error:
+        LOGGER.exception("Could not save practice result")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="The practice result could not be saved.",
+        ) from error

@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from record_processing.evaluation import build_overall_feedback
 from video_processing.media import normalize_transcript_text
 from video_processing.repository import SIMULATED_USER_ID
 
@@ -336,3 +337,134 @@ async def _replace_missed_words(
                 "word": word,
             },
         )
+
+
+async def save_practice_result(
+    session: AsyncSession,
+    video_id: str,
+) -> dict[str, object]:
+    """Complete a practice session and save its overall result.
+
+    Every stored transcript segment contributes to the denominator.  A
+    segment without an attempt therefore contributes zero instead of being
+    silently excluded from the learner's average.
+    """
+
+    saved_at = datetime.now(timezone.utc)
+    async with session.begin():
+        result = await session.execute(
+            text(
+                """
+                SELECT media_sources.id AS media_source_id,
+                       practice_sessions.id AS practice_session_id,
+                       COUNT(DISTINCT transcript_segments.id)
+                           AS sentence_count,
+                       COUNT(DISTINCT sentence_attempts.id)
+                           AS recorded_sentence_count,
+                       COALESCE(SUM(sentence_attempts.score), 0)
+                           AS total_score
+                FROM media_sources
+                JOIN transcripts
+                  ON transcripts.media_source_id = media_sources.id
+                 AND transcripts.id = (
+                     SELECT latest.id FROM transcripts AS latest
+                     WHERE latest.media_source_id = media_sources.id
+                     ORDER BY latest.created_at DESC LIMIT 1
+                 )
+                JOIN transcript_segments
+                  ON transcript_segments.transcript_id = transcripts.id
+                LEFT JOIN LATERAL (
+                    SELECT latest_session.id
+                    FROM practice_sessions AS latest_session
+                    WHERE latest_session.media_source_id = media_sources.id
+                      AND latest_session.user_id = :user_id
+                    ORDER BY latest_session.started_at DESC
+                    LIMIT 1
+                ) AS practice_sessions ON TRUE
+                LEFT JOIN sentence_attempts
+                  ON sentence_attempts.practice_session_id =
+                     practice_sessions.id
+                 AND sentence_attempts.transcript_segment_id =
+                     transcript_segments.id
+                WHERE media_sources.user_id = :user_id
+                  AND (
+                      media_sources.id::text = :video_id
+                      OR media_sources.source_url LIKE :video_url
+                  )
+                GROUP BY media_sources.id, practice_sessions.id
+                LIMIT 1
+                """
+            ),
+            {
+                "user_id": SIMULATED_USER_ID,
+                "video_id": video_id,
+                "video_url": f"%{video_id}%",
+            },
+        )
+        context = result.mappings().first()
+        if context is None:
+            raise PronunciationInputError("The practice lesson was not found.")
+
+        sentence_count = int(context["sentence_count"])
+        recorded_sentence_count = int(context["recorded_sentence_count"])
+        total_score = int(context["total_score"])
+        overall_score = (
+            round(total_score / sentence_count)
+            if sentence_count
+            else 0
+        )
+        feedback = build_overall_feedback(overall_score)
+        practice_session_id = context["practice_session_id"]
+
+        if practice_session_id is None:
+            practice_session_id = uuid4()
+            await session.execute(
+                text(
+                    """
+                    INSERT INTO practice_sessions (
+                        id, user_id, media_source_id, status, overall_score,
+                        started_at, completed_at, saved_at
+                    )
+                    VALUES (
+                        :id, :user_id, :media_source_id, 'completed',
+                        :overall_score, :saved_at, :saved_at, :saved_at
+                    )
+                    """
+                ),
+                {
+                    "id": practice_session_id,
+                    "user_id": SIMULATED_USER_ID,
+                    "media_source_id": context["media_source_id"],
+                    "overall_score": overall_score,
+                    "saved_at": saved_at,
+                },
+            )
+        else:
+            await session.execute(
+                text(
+                    """
+                    UPDATE practice_sessions
+                    SET status = 'completed',
+                        overall_score = :overall_score,
+                        completed_at = :saved_at,
+                        saved_at = :saved_at
+                    WHERE id = :id
+                    """
+                ),
+                {
+                    "id": practice_session_id,
+                    "overall_score": overall_score,
+                    "saved_at": saved_at,
+                },
+            )
+
+    return {
+        "video_id": video_id,
+        "overall_score": overall_score,
+        "feedback": feedback,
+        "sentence_count": sentence_count,
+        "recorded_sentence_count": recorded_sentence_count,
+        "unrecorded_sentence_count": (
+            sentence_count - recorded_sentence_count
+        ),
+    }

@@ -13,6 +13,23 @@ class ProcessVideoRequest(BaseModel):
     url: HttpUrl = Field(..., description="A permitted YouTube video URL")
 
 
+class SaveResultRequest(BaseModel):
+    """Identify the completed lesson whose result should be saved."""
+
+    video_id: str = Field(..., min_length=1)
+
+
+class SaveResultResponse(BaseModel):
+    """Overall practice result calculated from every lesson sentence."""
+
+    video_id: str
+    overall_score: int
+    feedback: str
+    sentence_count: int
+    recorded_sentence_count: int
+    unrecorded_sentence_count: int
+
+
 class TranscriptSegment(BaseModel):
     """One timestamped sentence in the generated lesson."""
 
