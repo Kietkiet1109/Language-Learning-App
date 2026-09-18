@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     whisper_compute_type: str = "int8"
     translation_model: str = "Helsinki-NLP/opus-mt-fr-en"
     translation_device: str = "cpu"
+    recording_directory: str = str(BACKEND_DIRECTORY / "recordings")
+    max_recording_bytes: int = 10 * 1024 * 1024
 
     model_config = SettingsConfigDict(
         env_file=BACKEND_DIRECTORY / ".env",

@@ -35,6 +35,13 @@ interface StoredVideo {
     video_id?: string;
 }
 
+interface PronunciationResult {
+    score: number;
+    learner_transcription: string;
+    missed_words: string[];
+    feedback: string;
+}
+
 interface YouTubePlayer {
     destroy: () => void;
     getCurrentTime: () => number;
@@ -116,6 +123,19 @@ function MicrophoneIcon() {
     );
 }
 
+function SpeakerIcon() {
+    return (
+        <svg
+            aria-hidden="true"
+            className="speaker-icon"
+            viewBox="0 0 32 32"
+        >
+            <path d="M5 12h6l7-6v20l-7-6H5z" />
+            <path d="M22 11a7 7 0 0 1 0 10M25 7a13 13 0 0 1 0 18" />
+        </svg>
+    );
+}
+
 function PlayIcon() {
     return (
         <svg aria-hidden="true" className="play-icon" viewBox="0 0 42 42">
@@ -136,6 +156,10 @@ export default function RecordPage() {
     const router = useRouter();
     const playerMountRef = useRef<HTMLDivElement>(null);
     const playerRef = useRef<YouTubePlayer | null>(null);
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const audioChunksRef = useRef<Blob[]>([]);
+    const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
+    const recordingUrlsRef = useRef<Record<number, string>>({});
     const [videoId, setVideoId] = useState("");
     const [parts, setParts] = useState<VideoPartsResponse | null>(null);
     const [sentenceIndex, setSentenceIndex] = useState(0);
@@ -144,7 +168,17 @@ export default function RecordPage() {
     const [isPlayerReady, setIsPlayerReady] = useState(false);
     const [isVideoPlaying, setIsVideoPlaying] = useState(false);
     const [isRecording, setIsRecording] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [hasResult, setHasResult] = useState(false);
+    const [recordingError, setRecordingError] = useState("");
+    const [pronunciationResult, setPronunciationResult] =
+        useState<PronunciationResult | null>(null);
+    const [recordingUrls, setRecordingUrls] = useState<
+        Record<number, string>
+    >({});
+    const [playingSequence, setPlayingSequence] = useState<number | null>(
+        null
+    );
 
     const repeatPart = parts?.parts.find(
         (part) => part.part_number === 2
@@ -293,20 +327,20 @@ export default function RecordPage() {
         }, 100);
 
         return () => window.clearInterval(timer);
-    }, [isPlayerReady, sentence?.start_seconds, sentence?.end_seconds]);
+    }, [isPlayerReady, sentence]);
 
     useEffect(() => {
-        if (!isRecording) {
-            return undefined;
-        }
-
-        const timer = window.setTimeout(() => {
-            setIsRecording(false);
-            setHasResult(true);
-        }, 1100);
-
-        return () => window.clearTimeout(timer);
-    }, [isRecording]);
+        return () => {
+            mediaRecorderRef.current?.stop();
+            mediaRecorderRef.current?.stream.getTracks().forEach((track) => {
+                track.stop();
+            });
+            audioPlayerRef.current?.pause();
+            Object.values(recordingUrlsRef.current).forEach((url) => {
+                URL.revokeObjectURL(url);
+            });
+        };
+    }, []);
 
     const handleVideoToggle = () => {
         const player = playerRef.current;
@@ -331,19 +365,167 @@ export default function RecordPage() {
         setIsVideoPlaying(true);
     };
 
-    const handleRecord = () => {
+    const submitRecording = async (
+        audioBlob: Blob,
+        recordedSentence: TranscriptSegment
+    ) => {
+        setIsSubmitting(true);
+        setRecordingError("");
+
+        try {
+            const formData = new FormData();
+            formData.append("audio", audioBlob, "pronunciation.webm");
+            formData.append("video_id", videoId);
+            formData.append(
+                "sequence_number",
+                String(recordedSentence.sequence_number)
+            );
+            formData.append("target_sentence", recordedSentence.french);
+
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL ??
+                "http://localhost:8000";
+            const response = await fetch(
+                `${apiUrl}/submit-pronunciation`,
+                {
+                    method: "POST",
+                    body: formData,
+                    credentials: "include",
+                }
+            );
+            const responseBody = await response.json();
+            if (!response.ok) {
+                throw new Error(
+                    responseBody?.detail ??
+                        "The pronunciation could not be evaluated."
+                );
+            }
+
+            if (sentence?.sequence_number === recordedSentence.sequence_number) {
+                setPronunciationResult(responseBody as PronunciationResult);
+                setHasResult(true);
+            }
+        } catch (error) {
+            setRecordingError(
+                error instanceof Error
+                    ? error.message
+                    : "The pronunciation could not be evaluated."
+            );
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleRecord = async () => {
+        if (isSubmitting) {
+            return;
+        }
+
+        if (isRecording) {
+            mediaRecorderRef.current?.stop();
+            return;
+        }
+
         setHasResult(false);
-        setIsRecording(true);
+        setPronunciationResult(null);
+        setRecordingError("");
+
+        const recordedSentence = sentence;
+        if (!recordedSentence) {
+            return;
+        }
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: true,
+            });
+            const preferredMimeType = "audio/webm;codecs=opus";
+            const mimeType = MediaRecorder.isTypeSupported(preferredMimeType)
+                ? preferredMimeType
+                : "audio/webm";
+            const mediaRecorder = new MediaRecorder(stream, { mimeType });
+            audioChunksRef.current = [];
+            mediaRecorderRef.current = mediaRecorder;
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    audioChunksRef.current.push(event.data);
+                }
+            };
+            mediaRecorder.onstop = () => {
+                const audioBlob = new Blob(audioChunksRef.current, {
+                    type: mediaRecorder.mimeType,
+                });
+                const recordingUrl = URL.createObjectURL(audioBlob);
+                const previousUrl =
+                    recordingUrlsRef.current[recordedSentence.sequence_number];
+                if (previousUrl) {
+                    URL.revokeObjectURL(previousUrl);
+                }
+                const nextRecordingUrls = {
+                    ...recordingUrlsRef.current,
+                    [recordedSentence.sequence_number]: recordingUrl,
+                };
+                recordingUrlsRef.current = nextRecordingUrls;
+                setRecordingUrls(nextRecordingUrls);
+                stream.getTracks().forEach((track) => track.stop());
+                mediaRecorderRef.current = null;
+                setIsRecording(false);
+                void submitRecording(audioBlob, recordedSentence);
+            };
+            mediaRecorder.start();
+            setIsRecording(true);
+        } catch (error) {
+            setRecordingError(
+                error instanceof DOMException && error.name ===
+                    "NotAllowedError"
+                    ? "Microphone permission is required to record."
+                    : "The microphone could not be started."
+            );
+            setIsRecording(false);
+        }
+    };
+
+    const handleRecordingPlayback = (sequenceNumber: number) => {
+        const recordingUrl = recordingUrls[sequenceNumber];
+        if (!recordingUrl) {
+            return;
+        }
+
+        if (
+            playingSequence === sequenceNumber &&
+            audioPlayerRef.current
+        ) {
+            audioPlayerRef.current.pause();
+            audioPlayerRef.current.currentTime = 0;
+            setPlayingSequence(null);
+            return;
+        }
+
+        audioPlayerRef.current?.pause();
+        const audioPlayer = new Audio(recordingUrl);
+        audioPlayer.onended = () => {
+            setPlayingSequence(null);
+        };
+        audioPlayerRef.current = audioPlayer;
+        setPlayingSequence(sequenceNumber);
+        void audioPlayer.play().catch(() => {
+            setPlayingSequence(null);
+            setRecordingError("The recording could not be played.");
+        });
     };
 
     const handleRetry = () => {
         setHasResult(false);
+        setPronunciationResult(null);
+        setRecordingError("");
     };
 
     const handlePrevious = () => {
         setSentenceIndex((currentIndex) => Math.max(currentIndex - 1, 0));
         setHasResult(false);
         setIsRecording(false);
+        setPronunciationResult(null);
+        setRecordingError("");
     };
 
     const handleNext = () => {
@@ -352,6 +534,8 @@ export default function RecordPage() {
         );
         setHasResult(false);
         setIsRecording(false);
+        setPronunciationResult(null);
+        setRecordingError("");
     };
 
     const handleDone = () => {
@@ -449,46 +633,89 @@ export default function RecordPage() {
                         </p>
                     </div>
 
-                    {!hasResult && (
-                        <div className="record-prompt" aria-live="polite">
+                    <div className="record-prompt" aria-live="polite">
                             <p>
                                 {isRecording
                                     ? "Listening..."
-                                    : "Repeat after this sentence"}
+                                    : isSubmitting
+                                      ? "Evaluating your pronunciation..."
+                                      : "Repeat after this sentence"}
                             </p>
-                            <button
-                                className={`microphone-button ${
-                                    isRecording ? "is-recording" : ""
-                                }`}
-                                type="button"
-                                onClick={handleRecord}
-                                disabled={isRecording}
-                                aria-label={
-                                    isRecording
-                                        ? "Recording in progress"
-                                        : "Record your pronunciation"
-                                }
-                            >
-                                <MicrophoneIcon />
-                            </button>
+                            <div className="record-controls">
+                                <button
+                                    className={`microphone-button ${
+                                        isRecording ? "is-recording" : ""
+                                    }`}
+                                    type="button"
+                                    onClick={handleRecord}
+                                    disabled={isSubmitting}
+                                    aria-label={
+                                        isRecording
+                                            ? "Stop recording"
+                                            : "Record your pronunciation"
+                                    }
+                                >
+                                    <MicrophoneIcon />
+                                </button>
+                                {recordingUrls[sentence.sequence_number] && (
+                                    <button
+                                        className={`speaker-button ${
+                                            playingSequence ===
+                                            sentence.sequence_number
+                                                ? "is-playing"
+                                                : ""
+                                        }`}
+                                        type="button"
+                                        onClick={() =>
+                                            handleRecordingPlayback(
+                                                sentence.sequence_number
+                                            )
+                                        }
+                                        aria-label={
+                                            playingSequence ===
+                                            sentence.sequence_number
+                                                ? "Stop your recording"
+                                                : "Play your recording"
+                                        }
+                                    >
+                                        <SpeakerIcon />
+                                    </button>
+                                )}
+                            </div>
                             <span className="record-hint">
                                 {isRecording
-                                    ? "Speak clearly into your microphone"
-                                    : "Tap to record"}
+                                    ? "Click again to stop recording"
+                                    : recordingUrls[sentence.sequence_number]
+                                      ? "Record again or listen to your latest recording"
+                                      : "Tap to record"}
                             </span>
-                        </div>
-                    )}
+                            {recordingError && (
+                                <p className="form-error" role="alert">
+                                    {recordingError}
+                                </p>
+                            )}
+                    </div>
 
                     {hasResult && (
                         <div className="record-result" aria-live="polite">
-                            <p className="result-label">Recording captured</p>
+                            <p className="result-label">Recording evaluated</p>
+                            <p className="result-score">
+                                Score: {pronunciationResult?.score ?? 0}%
+                            </p>
                             <p className="result-words">
-                                Your pronunciation is ready for evaluation.
+                                {pronunciationResult?.learner_transcription ||
+                                    "No speech was recognized."}
                             </p>
                             <p className="result-feedback">
-                                Pronunciation scoring will be connected to the
-                                evaluation endpoint next.
+                                {pronunciationResult?.feedback}
                             </p>
+                            {pronunciationResult?.missed_words.length ? (
+                                <p className="result-feedback">
+                                    Missed words: {pronunciationResult.missed_words.join(
+                                        ", "
+                                    )}
+                                </p>
+                            ) : null}
                         </div>
                     )}
 

@@ -726,6 +726,34 @@ a {
         box-shadow 160ms ease;
 }
 
+.record-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+}
+
+.speaker-button {
+    display: grid;
+    width: 88px;
+    height: 88px;
+    place-items: center;
+    border: 3px solid var(--primary-light);
+    border-radius: 24px;
+    background: var(--white);
+    color: var(--primary-dark);
+    cursor: pointer;
+    transition: background-color 160ms ease, transform 160ms ease,
+        box-shadow 160ms ease;
+}
+
+.speaker-button:hover,
+.speaker-button.is-playing {
+    background: var(--primary-light);
+    box-shadow: 0 8px 18px rgba(79, 179, 173, 0.2);
+    transform: translateY(-2px);
+}
+
 .microphone-button:hover {
     background: var(--primary-light);
     box-shadow: 0 8px 18px rgba(79, 179, 173, 0.2);
@@ -739,6 +767,7 @@ a {
 }
 
 .microphone-button:focus-visible,
+.speaker-button:focus-visible,
 .primary-action:focus-visible,
 .secondary-action:focus-visible,
 .video-play-button:focus-visible {
@@ -751,6 +780,15 @@ a {
 }
 
 .microphone-icon {
+    width: 42px;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 2;
+}
+
+.speaker-icon {
     width: 42px;
     fill: none;
     stroke: currentColor;

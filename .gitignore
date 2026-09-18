@@ -26,6 +26,7 @@ htmlcov/
 # Local backend data, media, and model caches
 backend/uploads/
 backend/media/
+backend/recordings/
 backend/tmp/
 backend/models/
 *.sqlite3

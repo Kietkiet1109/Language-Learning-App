@@ -7,7 +7,15 @@ from contextlib import asynccontextmanager
 from typing import AsyncIterator
 from uuid import UUID
 
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import (
+    Depends,
+    FastAPI,
+    File,
+    Form,
+    HTTPException,
+    UploadFile,
+    status,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
@@ -29,7 +37,8 @@ from video_processing.service import (
     process_and_persist_video,
     resegment_stored_video,
 )
-
+from record_processing.pronunciation import submit_pronunciation
+from record_processing.repository import PronunciationInputError
 
 LOGGER = logging.getLogger(__name__)
 
@@ -160,3 +169,34 @@ async def resegment_video_endpoint(
             detail="Completed video lesson was not found.",
         )
     return result
+
+
+@app.post("/submit-pronunciation")
+async def submit_pronunciation_endpoint(
+    audio: UploadFile = File(...),
+    video_id: str = Form(...),
+    sequence_number: int = Form(...),
+    target_sentence: str = Form(...),
+    session: AsyncSession = Depends(get_database_session),
+) -> dict[str, object]:
+    """Accept one learner recording and save its evaluation."""
+
+    try:
+        return await submit_pronunciation(
+            session=session,
+            audio=audio,
+            video_id=video_id,
+            sequence_number=sequence_number,
+            target_sentence=target_sentence,
+        )
+    except PronunciationInputError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
+    except Exception as error:
+        LOGGER.exception("Could not submit pronunciation")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="The pronunciation could not be evaluated.",
+        ) from error
