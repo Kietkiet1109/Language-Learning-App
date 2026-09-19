@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings
 from database import dispose_database_engine, get_database_session
-from routers.auth import router as auth_router
+from authentication.router import router as auth_router
 from video_processing.schemas import (
     ProcessVideoRequest,
     ProcessVideoResponse,
@@ -41,6 +41,7 @@ from video_processing.service import (
     process_and_persist_video,
     resegment_stored_video,
 )
+from authentication.dependencies import get_current_user_id
 from record_processing.pronunciation import (
     evaluate_recording,
     submit_pronunciation,
@@ -100,12 +101,17 @@ async def health_check(
 )
 async def process_video_endpoint(
     request: ProcessVideoRequest,
+    user_id: UUID = Depends(get_current_user_id),
     session: AsyncSession = Depends(get_database_session),
 ) -> ProcessVideoResponse:
-    """Process and persist one YouTube lesson for the simulated user."""
+    """Process and persist one YouTube lesson for the signed-in user."""
 
     try:
-        return await process_and_persist_video(session, str(request.url))
+        return await process_and_persist_video(
+            session,
+            str(request.url),
+            user_id,
+        )
     except UnsupportedVideoUrlError as error:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -133,12 +139,17 @@ async def process_video_endpoint(
 )
 async def processing_status_endpoint(
     processing_job_id: UUID,
+    user_id: UUID = Depends(get_current_user_id),
     session: AsyncSession = Depends(get_database_session),
 ) -> ProcessVideoResponse:
     """Return an existing processing job or its completed transcript."""
 
     try:
-        return await get_processing_status(session, processing_job_id)
+        return await get_processing_status(
+            session,
+            processing_job_id,
+            user_id,
+        )
     except LookupError as error:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -152,11 +163,12 @@ async def processing_status_endpoint(
 )
 async def video_parts_endpoint(
     video_id: str,
+    user_id: UUID = Depends(get_current_user_id),
     session: AsyncSession = Depends(get_database_session),
 ) -> VideoPartsResponse:
     """Return the three learning parts for a completed video."""
 
-    result = await get_video_parts(session, video_id)
+    result = await get_video_parts(session, video_id, user_id)
     if result is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -171,11 +183,12 @@ async def video_parts_endpoint(
 )
 async def resegment_video_endpoint(
     video_id: str,
+    user_id: UUID = Depends(get_current_user_id),
     session: AsyncSession = Depends(get_database_session),
 ) -> ResegmentationResponse:
     """Regenerate stored sentence boundaries for a completed video."""
 
-    result = await resegment_stored_video(session, video_id)
+    result = await resegment_stored_video(session, video_id, user_id)
     if result is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -190,6 +203,7 @@ async def submit_pronunciation_endpoint(
     video_id: str = Form(...),
     sequence_number: int = Form(...),
     target_sentence: str = Form(...),
+    user_id: UUID = Depends(get_current_user_id),
     session: AsyncSession = Depends(get_database_session),
 ) -> dict[str, object]:
     """Accept one learner recording and save its evaluation."""
@@ -201,6 +215,7 @@ async def submit_pronunciation_endpoint(
             video_id=video_id,
             sequence_number=sequence_number,
             target_sentence=target_sentence,
+            user_id=user_id,
         )
     except PronunciationInputError as error:
         raise HTTPException(
@@ -270,12 +285,17 @@ async def evaluate_pronunciation_endpoint(
 )
 async def save_result_endpoint(
     request: SaveResultRequest,
+    user_id: UUID = Depends(get_current_user_id),
     session: AsyncSession = Depends(get_database_session),
 ) -> SaveResultResponse:
     """Save a completed lesson and return its overall learner feedback."""
 
     try:
-        return await save_practice_result(session, request.video_id)
+        return await save_practice_result(
+            session,
+            request.video_id,
+            user_id,
+        )
     except PronunciationInputError as error:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

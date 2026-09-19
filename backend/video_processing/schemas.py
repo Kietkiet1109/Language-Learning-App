@@ -57,9 +57,9 @@ class ProcessVideoResponse(BaseModel):
     transcript: dict[str, str | None]
     segments: list[TranscriptSegment]
     transcript_source: str
-    media_source_id: UUID
-    processing_job_id: UUID
-    transcript_id: UUID
+    media_source_id: UUID | None
+    processing_job_id: UUID | None
+    transcript_id: UUID | None
     processing_status: str
 
 

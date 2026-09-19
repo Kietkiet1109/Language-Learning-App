@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { getApiUrl } from "../../lib/api";
 
 interface TranscriptSegment {
     sequence_number: number;
@@ -33,6 +34,8 @@ interface VideoPartsResponse {
 
 interface StoredVideo {
     video_id?: string;
+    media_source_id?: string;
+    source_url?: string;
 }
 
 interface PronunciationResult {
@@ -160,7 +163,8 @@ export default function RecordPage() {
     const audioChunksRef = useRef<Blob[]>([]);
     const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
     const recordingUrlsRef = useRef<Record<number, string>>({});
-    const [videoId, setVideoId] = useState("");
+    const [lessonId, setLessonId] = useState("");
+    const [youtubeVideoId, setYoutubeVideoId] = useState("");
     const [parts, setParts] = useState<VideoPartsResponse | null>(null);
     const [sentenceIndex, setSentenceIndex] = useState(0);
     const [isLoading, setIsLoading] = useState(true);
@@ -200,7 +204,8 @@ export default function RecordPage() {
                 const storedVideo = storedValue
                     ? (JSON.parse(storedValue) as StoredVideo)
                     : null;
-                const storedVideoId = storedVideo?.video_id;
+                const storedVideoId = storedVideo?.media_source_id ??
+                    storedVideo?.video_id;
 
                 if (!storedVideoId) {
                     throw new Error(
@@ -208,13 +213,20 @@ export default function RecordPage() {
                     );
                 }
 
-                setVideoId(storedVideoId);
-                const apiUrl = process.env.NEXT_PUBLIC_API_URL ??
-                    "http://localhost:8000";
+                setLessonId(storedVideoId);
+                const sourceUrl = storedVideo?.source_url;
+                const youtubeId = sourceUrl
+                    ? new URL(sourceUrl).searchParams.get("v") ??
+                      new URL(sourceUrl).pathname
+                          .split("/")
+                          .filter(Boolean)
+                          .pop() ?? ""
+                    : "";
+                setYoutubeVideoId(youtubeId);
                 const response = await fetch(
-                    `${apiUrl}/video/${encodeURIComponent(
+                    getApiUrl(`/video/${encodeURIComponent(
                         storedVideoId
-                    )}/parts`,
+                    )}/parts`),
                     {
                         credentials: "include",
                         signal: abortController.signal,
@@ -256,7 +268,7 @@ export default function RecordPage() {
     }, []);
 
     useEffect(() => {
-        if (isLoading || !videoId || !playerMountRef.current) {
+        if (isLoading || !youtubeVideoId || !playerMountRef.current) {
             return undefined;
         }
 
@@ -271,7 +283,7 @@ export default function RecordPage() {
                 playerRef.current = new youtube.Player(
                     playerMountRef.current,
                     {
-                        videoId,
+                        videoId: youtubeVideoId,
                         playerVars: {
                             controls: 0,
                             modestbranding: 1,
@@ -303,7 +315,7 @@ export default function RecordPage() {
             playerRef.current = null;
             setIsPlayerReady(false);
         };
-    }, [isLoading, videoId]);
+    }, [isLoading, youtubeVideoId]);
 
     useEffect(() => {
         if (!isPlayerReady || !sentence || !playerRef.current) {
@@ -375,17 +387,15 @@ export default function RecordPage() {
         try {
             const formData = new FormData();
             formData.append("audio", audioBlob, "pronunciation.webm");
-            formData.append("video_id", videoId);
+            formData.append("video_id", lessonId);
             formData.append(
                 "sequence_number",
                 String(recordedSentence.sequence_number)
             );
             formData.append("target_sentence", recordedSentence.french);
 
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL ??
-                "http://localhost:8000";
             const response = await fetch(
-                `${apiUrl}/submit-pronunciation`,
+                getApiUrl("/submit-pronunciation"),
                 {
                     method: "POST",
                     body: formData,

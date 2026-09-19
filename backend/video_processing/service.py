@@ -167,10 +167,11 @@ def build_video_parts(
 async def get_video_parts(
     session: AsyncSession,
     video_id: str,
+    user_id: UUID,
 ) -> VideoPartsResponse | None:
     """Return the stored three-part learning structure for a video."""
 
-    record = await load_video_parts(session, video_id)
+    record = await load_video_parts(session, video_id, user_id)
     if record is None:
         return None
 
@@ -189,10 +190,11 @@ async def get_video_parts(
 async def resegment_stored_video(
     session: AsyncSession,
     video_id: str,
+    user_id: UUID,
 ) -> ResegmentationResponse | None:
     """Regenerate and compare sentence segments for a stored video."""
 
-    record = await load_resegmentation_record(session, video_id)
+    record = await load_resegmentation_record(session, video_id, user_id)
     if record is None or record.transcript_id is None:
         return None
 
@@ -276,9 +278,9 @@ def process_video(url: str) -> ProcessVideoResponse:
         },
         segments=segments,
         transcript_source=transcript_source,
-        media_source_id="00000000-0000-0000-0000-000000000000",
-        processing_job_id="00000000-0000-0000-0000-000000000000",
-        transcript_id="00000000-0000-0000-0000-000000000000",
+        media_source_id=None,
+        processing_job_id=None,
+        transcript_id=None,
         processing_status="ready",
     )
 
@@ -286,6 +288,7 @@ def process_video(url: str) -> ProcessVideoResponse:
 async def process_and_persist_video(
     session: AsyncSession,
     url: str,
+    user_id: UUID,
 ) -> ProcessVideoResponse:
     """Validate, process, persist, and return one video lesson."""
 
@@ -298,6 +301,7 @@ async def process_and_persist_video(
     record, is_new = await find_or_create_processing_record(
         session,
         url,
+        user_id,
     )
 
     if not is_new and record.status == "ready":
@@ -333,8 +337,7 @@ async def process_and_persist_video(
             transcript_source=record.transcript_source or "pending",
             media_source_id=record.media_source_id,
             processing_job_id=record.processing_job_id,
-            transcript_id=record.transcript_id
-            or "00000000-0000-0000-0000-000000000000",
+            transcript_id=record.transcript_id,
             processing_status="processing",
         )
 
@@ -358,10 +361,11 @@ async def process_and_persist_video(
 async def get_processing_status(
     session: AsyncSession,
     processing_job_id: UUID,
+    user_id: UUID,
 ) -> ProcessVideoResponse:
     """Return the current status or completed data for a processing job."""
 
-    record = await load_processing_record(session, processing_job_id)
+    record = await load_processing_record(session, processing_job_id, user_id)
     if record is None:
         raise LookupError("Processing job was not found.")
 
@@ -378,7 +382,6 @@ async def get_processing_status(
         transcript_source=record.transcript_source or "pending",
         media_source_id=record.media_source_id,
         processing_job_id=record.processing_job_id,
-        transcript_id=record.transcript_id
-        or "00000000-0000-0000-0000-000000000000",
+        transcript_id=record.transcript_id,
         processing_status=record.status,
     )

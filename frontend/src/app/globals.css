@@ -81,11 +81,7 @@ button, a {
 
 .login-card,
 .signup-card,
-.auth-card {
-    width: min(100%, 480px);
-    overflow: hidden;
-}
-
+.auth-card,
 .menu-card {
     width: min(100%, 480px);
 }
@@ -100,6 +96,16 @@ button, a {
 
 .record-card {
     width: min(100%, 680px);
+}
+
+.login-card,
+.signup-card,
+.auth-card,
+.menu-card,
+.learning-card,
+.processing-card,
+.record-card {
+    overflow: hidden;
 }
 
 .menu-header,

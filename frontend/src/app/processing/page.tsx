@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { getApiUrl } from "../../lib/api";
 
 const PROCESSING_STAGES = [
     {
@@ -48,9 +49,6 @@ export default function ProcessingPage() {
         let isCancelled = false;
         const abortController = new AbortController();
 
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL ??
-            "http://localhost:8000";
-
         const saveCompletedVideo = (processedVideo: unknown) => {
             if (isCancelled) {
                 return;
@@ -74,7 +72,7 @@ export default function ProcessingPage() {
                 }
 
                 const response = await fetch(
-                    `${apiUrl}/process-video/${jobId}`,
+                    getApiUrl(`/process-video/${jobId}`),
                     {
                         credentials: "include",
                         signal: abortController.signal,
@@ -102,7 +100,7 @@ export default function ProcessingPage() {
 
         const processVideo = async () => {
             try {
-                const response = await fetch(`${apiUrl}/process-video`, {
+                const response = await fetch(getApiUrl("/process-video"), {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",

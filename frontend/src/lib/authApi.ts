@@ -1,20 +1,17 @@
+import { getApiUrl } from "./api";
+
 export interface CurrentUser {
+    id: string;
     name: string;
-}
-
-const API_BASE_URL =
-    process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-
-function getApiUrl(path: string) {
-    return `${API_BASE_URL}${path}`;
+    email: string;
 }
 
 export function getFacebookLoginUrl(): string {
-    return `${API_BASE_URL}/auth/facebook/login`;
+    return getApiUrl("/auth/facebook/login");
 }
 
 export function getGoogleLoginUrl(): string {
-    return `${API_BASE_URL}/auth/google/login`;
+    return getApiUrl("/auth/google/login");
 }
 
 interface AuthUser {
@@ -43,7 +40,7 @@ async function requestApi<T>(
     endpoint: string,
     payload: Record<string, string>,
 ): Promise<T> {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const response = await fetch(getApiUrl(endpoint), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -115,7 +112,8 @@ export async function getCurrentUser(): Promise<CurrentUser> {
         throw new Error("Unable to authenticate the current user.");
     }
 
-    const user = (await response.json()) as CurrentUser;
+    const body = (await response.json()) as AuthResponse;
+    const user = body.user;
 
     if (!user.name?.trim()) {
         throw new Error("The authenticated user has no display name.");
@@ -125,7 +123,7 @@ export async function getCurrentUser(): Promise<CurrentUser> {
 }
 
 export async function logoutUser() {
-    await fetch(getApiUrl("/logout"), {
+    await fetch(getApiUrl("/auth/logout"), {
         method: "POST",
         credentials: "include",
     });

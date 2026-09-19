@@ -10,7 +10,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from record_processing.evaluation import build_overall_feedback
 from video_processing.media import normalize_transcript_text
-from video_processing.repository import SIMULATED_USER_ID
 
 
 ALLOWED_AUDIO_TYPES = {
@@ -37,6 +36,7 @@ async def save_pronunciation_result(
     score: int,
     feedback: str,
     missed_words: list[str],
+    user_id: UUID,
 ) -> None:
     """Insert a new attempt or update the existing sentence attempt."""
 
@@ -47,6 +47,7 @@ async def save_pronunciation_result(
             video_id,
             sequence_number,
             target_sentence,
+            user_id,
         )
         await session.execute(
             text(
@@ -69,6 +70,7 @@ async def save_pronunciation_result(
             session,
             target["media_source_id"],
             created_at,
+            user_id,
         )
         attempt_id = await _find_attempt(
             session,
@@ -108,6 +110,7 @@ async def _find_target_segment(
     video_id: str,
     sequence_number: int,
     target_sentence: str,
+    user_id: UUID,
 ) -> dict[str, UUID]:
     """Find and authorize the requested lesson sentence."""
 
@@ -137,7 +140,7 @@ async def _find_target_segment(
             """
         ),
         {
-            "user_id": SIMULATED_USER_ID,
+            "user_id": user_id,
             "sequence_number": sequence_number,
             "video_id": video_id,
             "video_url": f"%{video_id}%",
@@ -159,6 +162,7 @@ async def _find_or_create_practice_session(
     session: AsyncSession,
     media_source_id: UUID,
     created_at: datetime,
+    user_id: UUID,
 ) -> UUID:
     """Reuse the active practice session for this user and source."""
 
@@ -174,7 +178,7 @@ async def _find_or_create_practice_session(
             """
         ),
         {
-            "user_id": SIMULATED_USER_ID,
+            "user_id": user_id,
             "media_source_id": media_source_id,
         },
     )
@@ -196,7 +200,7 @@ async def _find_or_create_practice_session(
         ),
         {
             "id": practice_session_id,
-            "user_id": SIMULATED_USER_ID,
+            "user_id": user_id,
             "media_source_id": media_source_id,
             "started_at": created_at,
         },
@@ -342,6 +346,7 @@ async def _replace_missed_words(
 async def save_practice_result(
     session: AsyncSession,
     video_id: str,
+    user_id: UUID,
 ) -> dict[str, object]:
     """Complete a practice session and save its overall result.
 
@@ -396,7 +401,7 @@ async def save_practice_result(
                 """
             ),
             {
-                "user_id": SIMULATED_USER_ID,
+                "user_id": user_id,
                 "video_id": video_id,
                 "video_url": f"%{video_id}%",
             },
@@ -433,7 +438,7 @@ async def save_practice_result(
                 ),
                 {
                     "id": practice_session_id,
-                    "user_id": SIMULATED_USER_ID,
+                    "user_id": user_id,
                     "media_source_id": context["media_source_id"],
                     "overall_score": overall_score,
                     "saved_at": saved_at,

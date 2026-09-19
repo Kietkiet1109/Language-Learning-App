@@ -5,7 +5,7 @@ import re
 import secrets
 from datetime import UTC, datetime, timedelta
 from pwdlib import PasswordHash
-from backend.config import settings
+from config import settings
 
 
 password_hasher = PasswordHash.recommended()

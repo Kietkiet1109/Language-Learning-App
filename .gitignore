@@ -1,6 +1,6 @@
 # Environment and secrets
-.env
-.env.*
+frontend/.env
+backend/.env
 !.env.example
 *.pem
 *.key

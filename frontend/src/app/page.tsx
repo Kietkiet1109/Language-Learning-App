@@ -59,7 +59,8 @@ function MenuOption({
 
 export default function Home() {
     const router = useRouter();
-    const [currentUser, setCurrentUser] = useState<CurrentUser>({name: "Kiet",});
+    const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+    const [isCheckingAuth, setIsCheckingAuth] = useState(true);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
 
     useEffect(() => {
@@ -73,7 +74,13 @@ export default function Home() {
                     setCurrentUser(user);
                 }
             } catch {
-                // router.replace("/login");
+                if (isMounted) {
+                    router.replace("/login");
+                }
+            } finally {
+                if (isMounted) {
+                    setIsCheckingAuth(false);
+                }
             }
         };
 
@@ -93,6 +100,10 @@ export default function Home() {
             router.replace("/login");
         }
     };
+
+    if (isCheckingAuth || !currentUser) {
+        return <main className="menu-page" aria-busy="true" />;
+    }
 
     return (
         <main className="menu-page">

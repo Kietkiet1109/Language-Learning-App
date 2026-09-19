@@ -23,6 +23,7 @@ MAX_SENTENCE_DURATION_SECONDS = 12.0
 MAX_HARD_SENTENCE_WORDS = 42
 MAX_HARD_SENTENCE_DURATION_SECONDS = 18.0
 MIN_SENTENCE_PAUSE_SECONDS = 0.8
+MIN_WORDS_FOR_PAUSE_BOUNDARY = 3
 SUBTITLE_OVERLAP_TOLERANCE_SECONDS = 0.25
 DUPLICATE_GAP_TOLERANCE_SECONDS = 0.75
 FRENCH_ABBREVIATIONS = {
@@ -545,9 +546,13 @@ def assemble_into_sentences(
             len(current_words) >= MAX_HARD_SENTENCE_WORDS
             or sentence_duration >= MAX_HARD_SENTENCE_DURATION_SECONDS
         )
+        pause_boundary = (
+            pause_duration >= MIN_SENTENCE_PAUSE_SECONDS
+            and len(current_words) >= MIN_WORDS_FOR_PAUSE_BOUNDARY
+        )
         should_finish = (
             _is_sentence_boundary(word.text)
-            or pause_duration >= MIN_SENTENCE_PAUSE_SECONDS
+            or pause_boundary
             or hard_limit
             or (soft_limit and next_word is None)
         )

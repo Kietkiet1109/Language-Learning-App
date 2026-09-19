@@ -16,11 +16,6 @@ from video_processing.schemas import (
 )
 
 
-SIMULATED_USER_ID = UUID("00000000-0000-0000-0000-000000000000")
-SIMULATED_USER_NAME = "Kiet Ngo"
-SIMULATED_USER_EMAIL = "kiet@prononcia.com"
-
-
 @dataclass(frozen=True)
 class ProcessingRecord:
     """Database identifiers and state for one processing request."""
@@ -49,6 +44,7 @@ class VideoPartsRecord:
 async def find_or_create_processing_record(
     session: AsyncSession,
     source_url: str,
+    user_id: UUID,
 ) -> tuple[ProcessingRecord, bool]:
     """Reuse an active/ready record or create a new processing record."""
 
@@ -115,7 +111,7 @@ async def find_or_create_processing_record(
                     """
                 ),
                 {
-                    "user_id": SIMULATED_USER_ID,
+                    "user_id": user_id,
                     "source_url": source_url,
                 },
             )
@@ -146,26 +142,6 @@ async def find_or_create_processing_record(
         await session.execute(
             text(
                 """
-                INSERT INTO users (
-                    id, name, email, is_active, created_at, updated_at
-                )
-                VALUES (
-                    :user_id, :user_name, :user_email, TRUE,
-                    :created_at, :created_at
-                )
-                ON CONFLICT (id) DO NOTHING
-                """
-            ),
-            {
-                "user_id": SIMULATED_USER_ID,
-                "user_name": SIMULATED_USER_NAME,
-                "user_email": SIMULATED_USER_EMAIL,
-                "created_at": created_at,
-            },
-        )
-        await session.execute(
-            text(
-                """
                 INSERT INTO media_sources (
                     id, user_id, source_url, source_type, language_code,
                     status, created_at
@@ -178,7 +154,7 @@ async def find_or_create_processing_record(
             ),
             {
                 "source_id": media_source_id,
-                "user_id": SIMULATED_USER_ID,
+                "user_id": user_id,
                 "source_url": source_url,
                 "created_at": created_at,
             },
@@ -220,6 +196,7 @@ async def find_or_create_processing_record(
 async def load_processing_record(
     session: AsyncSession,
     processing_job_id: UUID,
+    user_id: UUID,
 ) -> ProcessingRecord | None:
     """Load a processing record for status polling."""
 
@@ -258,7 +235,7 @@ async def load_processing_record(
                 ),
                 {
                     "job_id": processing_job_id,
-                    "user_id": SIMULATED_USER_ID,
+                    "user_id": user_id,
                 },
             )
         ).mappings().first()
@@ -338,6 +315,7 @@ async def load_completed_result(
 async def load_video_parts(
     session: AsyncSession,
     video_id: str,
+    user_id: UUID,
 ) -> VideoPartsRecord | None:
     """Load stored timing data used to construct the learning parts."""
 
@@ -380,7 +358,7 @@ async def load_video_parts(
                     """
                 ),
                 {
-                    "user_id": SIMULATED_USER_ID,
+                    "user_id": user_id,
                     "video_id": video_id,
                     "video_url": f"%{video_id}%",
                 },
@@ -420,6 +398,7 @@ async def load_video_parts(
 async def load_resegmentation_record(
     session: AsyncSession,
     video_id: str,
+    user_id: UUID,
 ) -> ProcessingRecord | None:
     """Load the stored source and active transcript for resegmentation."""
 
@@ -453,7 +432,7 @@ async def load_resegmentation_record(
                     """
                 ),
                 {
-                    "user_id": SIMULATED_USER_ID,
+                    "user_id": user_id,
                     "video_id": video_id,
                     "video_url": f"%{video_id}%",
                 },

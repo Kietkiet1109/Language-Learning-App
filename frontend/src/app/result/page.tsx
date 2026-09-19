@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { getApiUrl } from "../../lib/api";
 
 interface StoredVideo {
     video_id?: string;
+    media_source_id?: string;
 }
 
 interface SaveResultResponse {
@@ -34,21 +36,21 @@ export default function ResultPage() {
                     ? (JSON.parse(storedValue) as StoredVideo)
                     : null;
 
-                if (!storedVideo?.video_id) {
+                const lessonId = storedVideo?.media_source_id ??
+                    storedVideo?.video_id;
+                if (!lessonId) {
                     throw new Error(
                         "The completed practice lesson could not be found."
                     );
                 }
 
-                const apiUrl = process.env.NEXT_PUBLIC_API_URL ??
-                    "http://localhost:8000";
-                const response = await fetch(`${apiUrl}/save-result`, {
+                const response = await fetch(getApiUrl("/save-result"), {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
                     },
                     body: JSON.stringify({
-                        video_id: storedVideo.video_id,
+                        video_id: lessonId,
                     }),
                     credentials: "include",
                     signal: abortController.signal,

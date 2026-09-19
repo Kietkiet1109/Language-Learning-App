@@ -6,6 +6,7 @@ import logging
 import secrets
 from datetime import UTC, datetime, timedelta
 from urllib.parse import urlencode
+from uuid import UUID
 
 import httpx
 from aiosmtplib.errors import SMTPException
@@ -24,17 +25,18 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.auth import (
+from auth import (
     create_session_token,
     hash_password,
     hash_reset_token,
     is_password_strong,
     verify_password,
 )
-from backend.config import settings
-from backend.database import get_database_session
-from backend.mailer import send_password_reset_code
-from backend.schemas import (
+from config import settings
+from database import get_database_session
+from authentication.dependencies import get_current_user_id
+from mailer import send_password_reset_code
+from schemas import (
     AuthResponse,
     AuthUser,
     LoginRequest,
@@ -920,6 +922,28 @@ async def login(
             email=user["email"],
         )
     )
+
+
+@router.get("/me", response_model=AuthResponse)
+async def current_user(
+    user_id: UUID = Depends(get_current_user_id),
+    session: AsyncSession = Depends(get_database_session),
+) -> AuthResponse:
+    """Return the account associated with the active session cookie."""
+
+    result = await session.execute(
+        text(
+            "SELECT id, name, email FROM users WHERE id = :user_id"
+        ),
+        {"user_id": user_id},
+    )
+    user = result.mappings().one_or_none()
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication is required.",
+        )
+    return AuthResponse(user=AuthUser(**user))
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

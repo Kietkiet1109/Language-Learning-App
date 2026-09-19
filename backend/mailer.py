@@ -2,7 +2,7 @@
 
 from email.message import EmailMessage
 import aiosmtplib
-from backend.config import settings
+from config import settings
 
 
 async def send_password_reset_code(email: str, code: str) -> None:

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from fastapi import UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,6 +24,7 @@ async def submit_pronunciation(
     video_id: str,
     sequence_number: int,
     target_sentence: str,
+    user_id: UUID,
 ) -> dict[str, object]:
     """Save audio temporarily, transcribe it, evaluate it, and persist it."""
 
@@ -62,6 +63,7 @@ async def submit_pronunciation(
         score=result["score"],
         feedback=result["feedback"],
         missed_words=result["missed_words"],
+        user_id=user_id,
     )
     return result
 

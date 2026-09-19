@@ -12,10 +12,7 @@ class Settings(BaseSettings):
     """Define configuration required by the backend service."""
 
     database_url: str
-    frontend_origin: str = Field(
-        default="http://localhost:3000",
-        validation_alias="FRONTEND_URL",
-    )
+    frontend_origin: str = Field(validation_alias="FRONTEND_URL")
       
     session_cookie_name: str = "prononcia_session"
     session_cookie_secure: bool = False
@@ -32,7 +29,6 @@ class Settings(BaseSettings):
     facebook_app_id: str | None = None
     facebook_app_secret: str | None = None
     facebook_redirect_uri: str = Field(
-        default="http://localhost:8000/auth/facebook/callback",
         validation_alias="FACEBOOK_REDIRECT_URI",
     )
     facebook_graph_version: str = "v24.0"
@@ -40,8 +36,7 @@ class Settings(BaseSettings):
       
     google_client_id: str | None = None
     google_client_secret: str | None = None
-    google_redirect_uri: str = (
-        default="http://localhost:8000/auth/google/callback",
+    google_redirect_uri: str = Field(
         validation_alias="GOOGLE_REDIRECT_URI",
     )
     google_state_cookie_name: str = "google_oauth_state"
