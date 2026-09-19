@@ -1,0 +1,11 @@
+.git
+.venv
+__pycache__
+*.pyc
+frontend
+frontend/.next
+node_modules
+backend/.env
+backend/recordings
+backend/uploads
+backend/models
