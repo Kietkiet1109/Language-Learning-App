@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings
 from database import dispose_database_engine, get_database_session
+from routers.auth import router as auth_router
 from video_processing.schemas import (
     ProcessVideoRequest,
     ProcessVideoResponse,
@@ -74,6 +75,8 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type"],
 )
+
+app.include_router(auth_router)
 
 
 @app.get("/health")
