@@ -1,9 +1,9 @@
 """Pydantic schemas used by the video processing feature."""
 
 from __future__ import annotations
+
 from typing import Literal
 from uuid import UUID
-
 from pydantic import BaseModel, Field, HttpUrl
 
 

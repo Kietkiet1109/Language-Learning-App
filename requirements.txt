@@ -15,7 +15,8 @@ alembic>=1.15.2
 
 # Authentication and security
 pyjwt>=2.10.1
-google-auth>=2.40.0
+requests>=2.32.0
+google-auth[requests]>=2.40.0
 pwdlib[argon2]>=0.2.1
 
 # S3-compatible object storage
