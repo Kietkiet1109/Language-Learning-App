@@ -25,7 +25,6 @@ boto3>=1.37.0
 # Media ingestion and transcription
 yt-dlp[default]>=2025.4.30
 faster-whisper>=1.1.1
-pysubs2>=1.8.0
 
 # Transcript normalization and similarity scoring
 rapidfuzz>=3.13.0

@@ -66,9 +66,9 @@ The Docker image includes Deno and the yt-dlp default components required for
 YouTube's JavaScript challenge handling. This improves compatibility but does
 not guarantee that YouTube will permit every request.
 
-When French subtitles are available from the permitted source, the backend
-uses those timestamped captions first and avoids downloading source audio.
-Audio download remains a fallback for videos without usable French captions.
+The backend always downloads the source audio and uses French Whisper
+transcription for both sentence text and timestamps. YouTube subtitles are
+not used because their accuracy and timing can vary between environments.
 Do not use a proxy as an authentication workaround.
 
 ## System design

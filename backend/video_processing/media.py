@@ -1,4 +1,4 @@
-"""Media download, subtitle parsing, and French transcription services."""
+"""Media download and French transcription services."""
 
 from __future__ import annotations
 
@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-import pysubs2
 from yt_dlp import YoutubeDL
 
 from config import settings
@@ -25,7 +24,6 @@ MAX_HARD_SENTENCE_WORDS = 42
 MAX_HARD_SENTENCE_DURATION_SECONDS = 18.0
 MIN_SENTENCE_PAUSE_SECONDS = 0.8
 MIN_WORDS_FOR_PAUSE_BOUNDARY = 3
-SUBTITLE_OVERLAP_TOLERANCE_SECONDS = 0.25
 DUPLICATE_GAP_TOLERANCE_SECONDS = 0.75
 FRENCH_ABBREVIATIONS = {
     "av",
@@ -96,27 +94,11 @@ def extract_video_id(url: str) -> str:
     return ""
 
 
-def find_french_subtitle(
-    metadata: dict[str, Any],
-) -> tuple[str | None, bool]:
-    """Find a French subtitle language and whether it is automatic."""
-
-    for language in metadata.get("subtitles", {}):
-        if language.lower().startswith("fr"):
-            return language, False
-
-    for language in metadata.get("automatic_captions", {}):
-        if language.lower().startswith("fr"):
-            return language, True
-
-    return None, False
-
-
 def download_media(
     url: str,
     output_directory: Path,
-) -> tuple[Path | None, Path | None, dict[str, Any]]:
-    """Use permitted captions first, then download audio if needed."""
+) -> tuple[Path, dict[str, Any]]:
+    """Download audio for Whisper transcription."""
 
     output_template = str(output_directory / "source.%(ext)s")
 
@@ -141,26 +123,6 @@ def download_media(
     with YoutubeDL(common_options) as downloader:
         metadata = downloader.extract_info(url, download=False)
 
-    subtitle_language, is_automatic = find_french_subtitle(metadata)
-    if subtitle_language:
-        subtitle_options = {
-            **common_options,
-            "skip_download": True,
-            "subtitlesformat": "vtt",
-            "subtitleslangs": [subtitle_language],
-        }
-        if is_automatic:
-            subtitle_options["writeautomaticsub"] = True
-        else:
-            subtitle_options["writesubtitles"] = True
-
-        with YoutubeDL(subtitle_options) as downloader:
-            downloader.download([url])
-
-        subtitle_paths = sorted(output_directory.glob("source*.vtt"))
-        if subtitle_paths:
-            return None, subtitle_paths[0], metadata
-
     audio_options = {
         **common_options,
         "format": "bestaudio[ext=m4a]/bestaudio/best",
@@ -179,7 +141,7 @@ def download_media(
     if not audio_path.exists():
         raise RuntimeError("FFmpeg did not create the extracted audio file.")
 
-    return audio_path, None, metadata
+    return audio_path, metadata
 
 
 @lru_cache(maxsize=1)
@@ -253,42 +215,8 @@ def transcribe_audio(audio_path: Path) -> tuple[list[WhisperSegment], str]:
     return whisper_segments, transcript
 
 
-def load_subtitles(subtitle_path: Path) -> tuple[list[WhisperSegment], str]:
-    """Read French subtitle events and preserve their timestamps."""
-
-    subtitles = pysubs2.load(str(subtitle_path))
-    segments = []
-    for event in subtitles:
-        text = clean_transcript_text(event.text)
-        if text:
-            segments.append(
-                WhisperSegment(
-                    text=text,
-                    start_seconds=event.start / 1000,
-                    end_seconds=event.end / 1000,
-                    is_non_speech=is_pure_non_speech_cue(text),
-                    contains_non_speech=has_non_speech_cue(text),
-                )
-            )
-
-    for index, segment in enumerate(segments, start=1):
-        LOGGER.debug(
-            "subtitle_raw index=%d start=%.3f end=%.3f text=%r",
-            index,
-            segment.start_seconds,
-            segment.end_seconds,
-            segment.text,
-        )
-    segments = merge_overlapping_subtitles(segments)
-    segments = remove_adjacent_duplicates(segments)
-    transcript = " ".join(
-        segment.text for segment in segments if not segment.is_non_speech
-    )
-    return segments, transcript
-
-
 def clean_transcript_text(value: str) -> str:
-    """Normalize subtitle markup, Unicode, and whitespace for processing."""
+    """Normalize transcription text and whitespace for processing."""
 
     normalized_value = unicodedata.normalize("NFKC", value)
     normalized_value = re.sub(r"\{.*?\}|<.*?>", "", normalized_value)
@@ -343,90 +271,6 @@ def _normalized_tokens(value: str) -> list[str]:
     """Return normalized words used for overlap and duplicate comparisons."""
 
     return normalize_transcript_text(value).split()
-
-
-def merge_overlapping_text(left: str, right: str) -> str:
-    """Merge repeated suffix/prefix words from adjacent text units."""
-
-    left_tokens = _text_tokens(left)
-    right_tokens = _text_tokens(right)
-    left_normalized = _normalized_tokens(left)
-    right_normalized = _normalized_tokens(right)
-
-    max_overlap = min(len(left_tokens), len(right_tokens))
-    for overlap in range(max_overlap, 0, -1):
-        if left_normalized[-overlap:] == right_normalized[:overlap]:
-            return " ".join(left_tokens + right_tokens[overlap:])
-
-    return " ".join(left_tokens + right_tokens)
-
-
-def merge_overlapping_subtitles(
-    segments: list[WhisperSegment],
-) -> list[WhisperSegment]:
-    """Merge subtitle cues that repeat or overlap the same spoken text."""
-
-    merged_segments: list[WhisperSegment] = []
-    for segment in segments:
-        if not merged_segments:
-            merged_segments.append(segment)
-            continue
-
-        previous = merged_segments[-1]
-        gap = segment.start_seconds - previous.end_seconds
-        same_text = normalize_transcript_text(
-            previous.text
-        ) == normalize_transcript_text(segment.text)
-        overlaps = (
-            segment.start_seconds
-            < previous.end_seconds - SUBTITLE_OVERLAP_TOLERANCE_SECONDS
-        )
-
-        if same_text and gap <= DUPLICATE_GAP_TOLERANCE_SECONDS:
-            merged_segments[-1] = previous.model_copy(
-                update={
-                    "end_seconds": max(
-                        previous.end_seconds,
-                        segment.end_seconds,
-                    ),
-                    "contains_non_speech": (
-                        previous.contains_non_speech
-                        or segment.contains_non_speech
-                    ),
-                    "is_non_speech": (
-                        previous.is_non_speech and segment.is_non_speech
-                    ),
-                }
-            )
-            continue
-
-        if overlaps:
-            merged_text = merge_overlapping_text(
-                previous.text,
-                segment.text,
-            )
-            merged_normalized = normalize_transcript_text(merged_text)
-            previous_normalized = normalize_transcript_text(previous.text)
-            if merged_normalized != previous_normalized:
-                merged_segments[-1] = previous.model_copy(
-                    update={
-                        "text": merged_text,
-                        "end_seconds": max(
-                            previous.end_seconds,
-                            segment.end_seconds,
-                        ),
-                        "contains_non_speech": (
-                            previous.contains_non_speech
-                            or segment.contains_non_speech
-                        ),
-                        "is_non_speech": False,
-                    }
-                )
-                continue
-
-        merged_segments.append(segment)
-
-    return merged_segments
 
 
 def remove_adjacent_duplicates(
