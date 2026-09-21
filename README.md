@@ -1,4 +1,4 @@
-# Language Learning App — Prononcia
+# Language Learning App - Prononcia
 
 Prononcia is a web-first French pronunciation-learning application. A learner submits a YouTube or audio link, practises a sentence-by-sentence lesson, records a repetition, and receives a transcript-based accuracy score with constructive feedback.
 
@@ -8,15 +8,34 @@ The first release is intentionally narrow: French content, personal use, and tex
 
 The project is currently hosted and the first usable French pronunciation-learning flow is available.
 
-- Frontend: https://pronuncia-kappa.vercel.app/
+- Frontend: https://prononcia-fqfmyfzpo-kiet15.vercel.app
 - Backend: https://prononcia-1063858437208.us-west1.run.app
 - `frontend/` is a Next.js application built with React and TypeScript.
 - `backend/` is a FastAPI application using PostgreSQL and Alembic migrations.
 - Email/password authentication, Google and Facebook authentication, password recovery, session cookies, video processing, transcript segmentation, pronunciation evaluation, and result saving are implemented.
 - The Menu page currently supports Start Learning. Progress, Profile Setting, and Notification Setting are displayed as unavailable features while they are in development.
-- Phoneme-level pronunciation analysis, additional languages, background-worker orchestration, and production-grade progress and notification settings remain future work.
+- Phoneme-level pronunciation analysis, additional languages, and production-grade progress and notification settings remain future work.
 
 The hosted deployments require their frontend and backend environment variables to be configured independently.
+
+Video transcription and translation run in the separate `prononcia-worker`
+Cloud Run Job. The API service creates a PostgreSQL processing job and starts
+one worker execution with `PRONONCIA_JOB_ID`; the worker runs Whisper and the
+Helsinki French-to-English model, saves the result, and exits. PostgreSQL is
+the queue and source of truth; Redis is not required.
+
+The API service requires these worker-trigger settings in production:
+
+```text
+GOOGLE_CLOUD_PROJECT=<google-cloud-project-id>
+WORKER_JOB_NAME=prononcia-worker
+WORKER_JOB_REGION=us-west1
+```
+
+The API service account needs permission to execute the Cloud Run Job. The
+worker job needs the same `DATABASE_URL`, the model settings, and access to
+the YouTube cookie secret. Deploy the API image from `Dockerfile` and the
+worker image from `Dockerfile.worker`.
 
 ### YouTube extraction deployment
 
@@ -61,11 +80,11 @@ Do not use a proxy as an authentication workaround.
 | Relational database | PostgreSQL accessed with SQLAlchemy and asyncpg |
 | Database migrations | Alembic |
 | Object storage | S3-compatible storage for source media, recordings, and generated artifacts |
-| Background processing | Celery workers with Redis as the broker/result backend |
+| Background processing | Cloud Run Job worker coordinated through PostgreSQL |
 | Media processing | FFmpeg, with permitted YouTube/audio access handled by the backend |
 | Speech recognition | Whisper-compatible transcription via `faster-whisper` |
 | Initial comparison | Normalized text similarity, word error rate, and Levenshtein-style comparison |
-| Deployment | Docker-based frontend, API, worker, PostgreSQL, Redis, and storage integration |
+| Deployment | Docker-based frontend, API, worker, PostgreSQL, and storage integration |
 | Scope of v1 | French, web-first, sentence-by-sentence practice, and saved results |
 
 PostgreSQL stores application metadata, users, lessons, attempts, scores, and job status. Object storage stores large binary files; they should not be stored inside PostgreSQL or committed to Git. Background workers handle long-running work such as media retrieval, FFmpeg conversion, transcription, segmentation, and cleanup so API requests remain responsive.
@@ -123,7 +142,7 @@ The API should validate audio, source URLs, authentication, record ownership, up
 
 ## Local setup
 
-The complete local stack will require PostgreSQL, Redis, an S3-compatible object-storage service, FFmpeg, the FastAPI API, and a background worker. Docker Compose is recommended once those services are configured.
+The complete local stack will require PostgreSQL, an S3-compatible object-storage service, FFmpeg, the FastAPI API, and a background worker. Docker Compose is recommended once those services are configured.
 
 ### Backend dependencies
 
@@ -196,4 +215,4 @@ Open [http://localhost:3000](http://localhost:3000). Use `NEXT_PUBLIC_API_URL=ht
 
 ## License and external services
 
-Add a project license before distribution. Review the terms for YouTube, Whisper/model weights, PostgreSQL hosting, object storage, Redis, and notification providers before deploying beyond personal use.
+Add a project license before distribution. Review the terms for YouTube, Whisper/model weights, PostgreSQL hosting, object storage, and notification providers before deploying beyond personal use.

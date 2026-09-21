@@ -64,7 +64,7 @@ export default function ProcessingPage() {
         const waitForProcessingJob = async (jobId: string) => {
             while (!isCancelled) {
                 await new Promise((resolve) => {
-                    window.setTimeout(resolve, 1200);
+                    window.setTimeout(resolve, 3000);
                 });
 
                 if (isCancelled) {
@@ -123,7 +123,10 @@ export default function ProcessingPage() {
                     return;
                 }
 
-                if (processedVideo.processing_status === "processing") {
+                if (
+                    processedVideo.processing_status === "pending" ||
+                    processedVideo.processing_status === "processing"
+                ) {
                     await waitForProcessingJob(
                         processedVideo.processing_job_id
                     );

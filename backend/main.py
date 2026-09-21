@@ -14,6 +14,7 @@ from fastapi import (
     File,
     Form,
     HTTPException,
+    Response,
     UploadFile,
     status,
 )
@@ -38,9 +39,10 @@ from video_processing.service import (
     UnsupportedVideoUrlError,
     get_processing_status,
     get_video_parts,
-    process_and_persist_video,
+    queue_video_processing,
     resegment_stored_video,
 )
+from video_processing.repository import mark_processing_failed
 from authentication.dependencies import get_current_user_id
 from record_processing.pronunciation import (
     evaluate_recording,
@@ -71,9 +73,11 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        settings.frontend_origin,
-    ],
+    allow_origins=(
+        [settings.frontend_origin]
+        if settings.frontend_origin
+        else []
+    ),
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS", "HEAD"],
     allow_headers=[
@@ -109,17 +113,48 @@ async def health_check(
 )
 async def process_video_endpoint(
     request: ProcessVideoRequest,
+    response: Response,
     user_id: UUID = Depends(get_current_user_id),
     session: AsyncSession = Depends(get_database_session),
 ) -> ProcessVideoResponse:
-    """Process and persist one YouTube lesson for the signed-in user."""
+    """Queue one YouTube lesson for asynchronous worker processing."""
 
     try:
-        return await process_and_persist_video(
+        result, should_trigger_worker = await queue_video_processing(
             session,
             str(request.url),
             user_id,
         )
+        if should_trigger_worker:
+            from fastapi.concurrency import run_in_threadpool
+
+            from worker_trigger import trigger_video_worker
+
+            try:
+                await run_in_threadpool(
+                    trigger_video_worker,
+                    str(result.processing_job_id),
+                )
+            except Exception as error:
+                await mark_processing_failed(
+                    session,
+                    result.media_source_id,
+                    result.processing_job_id,
+                )
+                LOGGER.exception(
+                    "Could not start video worker job=%s",
+                    result.processing_job_id,
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail="The video worker could not be started.",
+                ) from error
+            response.status_code = status.HTTP_202_ACCEPTED
+        elif result.processing_status in {"pending", "processing"}:
+            response.status_code = status.HTTP_202_ACCEPTED
+        return result
+    except HTTPException:
+        raise
     except UnsupportedVideoUrlError as error:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

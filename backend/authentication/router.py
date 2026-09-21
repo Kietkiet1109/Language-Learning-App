@@ -69,14 +69,20 @@ def facebook_is_configured() -> bool:
     """Return whether the required Facebook OAuth settings are available."""
 
     return bool(
-        settings.facebook_app_id and settings.facebook_app_secret
+        settings.facebook_app_id
+        and settings.facebook_app_secret
+        and settings.facebook_redirect_uri
     )
 
 
 def google_is_configured() -> bool:
     """Return whether the required Google OAuth settings are available."""
 
-    return bool(settings.google_client_id and settings.google_client_secret)
+    return bool(
+        settings.google_client_id
+        and settings.google_client_secret
+        and settings.google_redirect_uri
+    )
 
 
 def facebook_error_redirect(error_code: str) -> RedirectResponse:

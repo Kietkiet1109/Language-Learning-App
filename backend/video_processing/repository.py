@@ -16,6 +16,9 @@ from video_processing.schemas import (
 )
 
 
+STALE_JOB_MINUTES = 30
+
+
 @dataclass(frozen=True)
 class ProcessingRecord:
     """Database identifiers and state for one processing request."""
@@ -58,6 +61,29 @@ async def find_or_create_processing_record(
                 """
             ),
             {"source_url": source_url},
+        )
+        await session.execute(
+            text(
+                """
+                UPDATE media_processing_jobs
+                SET status = 'pending', started_at = NULL,
+                    error_message = NULL
+                FROM media_sources
+                WHERE media_processing_jobs.media_source_id =
+                      media_sources.id
+                  AND media_sources.user_id = :user_id
+                  AND media_sources.source_url = :source_url
+                  AND media_processing_jobs.status = 'running'
+                  AND media_processing_jobs.started_at < (
+                      now() - make_interval(mins => :stale_minutes)
+                  )
+                """
+            ),
+            {
+                "user_id": user_id,
+                "source_url": source_url,
+                "stale_minutes": STALE_JOB_MINUTES,
+            },
         )
         existing = (
             await session.execute(
@@ -118,11 +144,12 @@ async def find_or_create_processing_record(
         ).mappings().first()
 
         if existing:
-            status = (
-                "ready"
-                if existing["source_status"] == "ready"
-                else "processing"
-            )
+            if existing["source_status"] == "ready":
+                status = "ready"
+            elif existing["job_status"] == "pending":
+                status = "pending"
+            else:
+                status = "processing"
             return (
                 ProcessingRecord(
                     media_source_id=existing["media_source_id"],
@@ -164,18 +191,17 @@ async def find_or_create_processing_record(
                 """
                 INSERT INTO media_processing_jobs (
                     id, media_source_id, job_type, status, attempt_count,
-                    started_at, created_at
+                    created_at
                 )
                 VALUES (
-                    :job_id, :source_id, 'transcription', 'running', 1,
-                    :started_at, :created_at
+                    :job_id, :source_id, 'transcription', 'pending', 0,
+                    :created_at
                 )
                 """
             ),
             {
                 "job_id": processing_job_id,
                 "source_id": media_source_id,
-                "started_at": created_at,
                 "created_at": created_at,
             },
         )
@@ -185,12 +211,72 @@ async def find_or_create_processing_record(
                 processing_job_id=processing_job_id,
                 transcript_id=None,
                 source_url=source_url,
-                status="processing",
+                status="pending",
                 duration_seconds=None,
                 transcript_source=None,
             ),
             True,
         )
+
+
+async def claim_processing_job(
+    session: AsyncSession,
+    processing_job_id: UUID,
+) -> ProcessingRecord | None:
+    """Atomically claim one pending job for a worker task."""
+
+    started_at = datetime.now(timezone.utc)
+    async with session.begin():
+        row = (
+            await session.execute(
+                text(
+                    """
+                    SELECT
+                        media_sources.id AS media_source_id,
+                        media_processing_jobs.id AS processing_job_id,
+                        media_sources.source_url,
+                        media_sources.duration_seconds
+                    FROM media_processing_jobs
+                    JOIN media_sources
+                        ON media_sources.id =
+                           media_processing_jobs.media_source_id
+                    WHERE media_processing_jobs.id = :job_id
+                      AND media_processing_jobs.status = 'pending'
+                    FOR UPDATE SKIP LOCKED
+                    """
+                ),
+                {"job_id": processing_job_id},
+            )
+        ).mappings().first()
+
+        if row is None:
+            return None
+
+        await session.execute(
+            text(
+                """
+                UPDATE media_processing_jobs
+                SET status = 'running',
+                    attempt_count = attempt_count + 1,
+                    started_at = :started_at
+                WHERE id = :job_id
+                """
+            ),
+            {
+                "job_id": processing_job_id,
+                "started_at": started_at,
+            },
+        )
+
+    return ProcessingRecord(
+        media_source_id=row["media_source_id"],
+        processing_job_id=row["processing_job_id"],
+        transcript_id=None,
+        source_url=row["source_url"],
+        status="running",
+        duration_seconds=row["duration_seconds"],
+        transcript_source=None,
+    )
 
 
 async def load_processing_record(
@@ -243,9 +329,14 @@ async def load_processing_record(
     if not row:
         return None
 
-    status = "ready" if row["source_status"] == "ready" else "processing"
-    if row["job_status"] == "failed":
+    if row["source_status"] == "ready":
+        status = "ready"
+    elif row["job_status"] == "pending":
+        status = "pending"
+    elif row["job_status"] == "failed":
         status = "failed"
+    else:
+        status = "processing"
     return ProcessingRecord(
         media_source_id=row["media_source_id"],
         processing_job_id=row["processing_job_id"],

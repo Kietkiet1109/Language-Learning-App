@@ -37,6 +37,7 @@ export default function LearningPage() {
     const router = useRouter();
     const [videoLink, setVideoLink] = useState("");
     const [formError, setFormError] = useState("");
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -53,6 +54,7 @@ export default function LearningPage() {
         }
 
         setFormError("");
+        setIsSubmitting(true);
         router.push(
             `/processing?video=${encodeURIComponent(normalizedVideoLink)}`
         );
@@ -117,8 +119,12 @@ export default function LearningPage() {
                         </p>
                     )}
 
-                    <button type="submit" className="learning-button">
-                        Start Learning
+                    <button
+                        type="submit"
+                        className="learning-button"
+                        disabled={isSubmitting}
+                    >
+                        {isSubmitting ? "Preparing..." : "Start Learning"}
                     </button>
                 </form>
             </section>

@@ -26,9 +26,7 @@ from video_processing.repository import (
     load_transcript_segments,
     load_video_parts,
     load_processing_record,
-    mark_processing_failed,
     save_resegmented_transcript,
-    save_transcription_result,
 )
 from video_processing.schemas import (
     ProcessVideoResponse,
@@ -37,7 +35,6 @@ from video_processing.schemas import (
     VideoPart,
     VideoPartsResponse,
 )
-from video_processing.translation import translate_segments
 
 
 LOGGER = logging.getLogger(__name__)
@@ -72,6 +69,8 @@ def translate_transcript_segments(
     segments: list[TranscriptSegment],
 ) -> list[TranscriptSegment]:
     """Translate each finalized sentence without changing its timing."""
+
+    from video_processing.translation import translate_segments
 
     return translate_segments(segments)
 
@@ -291,12 +290,12 @@ def process_video(url: str) -> ProcessVideoResponse:
     )
 
 
-async def process_and_persist_video(
+async def queue_video_processing(
     session: AsyncSession,
     url: str,
     user_id: UUID,
-) -> ProcessVideoResponse:
-    """Validate, process, persist, and return one video lesson."""
+) -> tuple[ProcessVideoResponse, bool]:
+    """Validate and enqueue one video lesson without running ML work."""
 
     if not is_permitted_youtube_url(url):
         raise UnsupportedVideoUrlError
@@ -311,27 +310,12 @@ async def process_and_persist_video(
     )
 
     if not is_new and record.status == "ready":
-        if record.transcript_source == "french_subtitles":
-            result = await run_in_threadpool(process_video, url)
-            transcript_id = await save_resegmented_transcript(
-                session,
-                record.media_source_id,
-                result.segments,
-                result.transcript["french"] or "",
-                result.transcript_source,
-            )
-            return result.model_copy(
-                update={
-                    "media_source_id": record.media_source_id,
-                    "processing_job_id": record.processing_job_id,
-                    "transcript_id": transcript_id,
-                }
-            )
-        return await load_completed_result(
+        result = await load_completed_result(
             session,
             record,
             extract_video_id(url),
         )
+        return result, False
 
     if not is_new:
         return ProcessVideoResponse(
@@ -344,24 +328,21 @@ async def process_and_persist_video(
             media_source_id=record.media_source_id,
             processing_job_id=record.processing_job_id,
             transcript_id=record.transcript_id,
-            processing_status="processing",
-        )
+            processing_status=record.status,
+        ), False
 
-    try:
-        result = await run_in_threadpool(process_video, url)
-        return await save_transcription_result(
-            session,
-            result,
-            record.media_source_id,
-            record.processing_job_id,
-        )
-    except Exception:
-        await mark_processing_failed(
-            session,
-            record.media_source_id,
-            record.processing_job_id,
-        )
-        raise
+    return ProcessVideoResponse(
+        video_id=extract_video_id(url),
+        source_url=url,
+        duration_seconds=None,
+        transcript={"french": None, "english": None},
+        segments=[],
+        transcript_source="pending",
+        media_source_id=record.media_source_id,
+        processing_job_id=record.processing_job_id,
+        transcript_id=None,
+        processing_status="pending",
+    ), True
 
 
 async def get_processing_status(

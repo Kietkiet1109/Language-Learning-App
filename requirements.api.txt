@@ -1,0 +1,26 @@
+# Prononcia API service dependencies
+fastapi>=0.115.12
+uvicorn[standard]>=0.34.2
+pydantic-settings>=2.9.1
+pydantic[email]>=2.11.0
+python-multipart>=0.0.20
+
+sqlalchemy[asyncio]>=2.0.40
+asyncpg>=0.30.0
+alembic>=1.15.2
+
+pyjwt>=2.10.1
+requests>=2.32.0
+google-auth[requests]>=2.40.0
+pwdlib[argon2]>=0.2.1
+
+boto3>=1.37.0
+
+yt-dlp[default]>=2025.4.30
+faster-whisper>=1.1.1
+pysubs2>=1.8.0
+rapidfuzz>=3.13.0
+
+httpx>=0.28.1
+python-dotenv>=1.1.0
+aiosmtplib>=3.0.2

@@ -12,7 +12,10 @@ class Settings(BaseSettings):
     """Define configuration required by the backend service."""
 
     database_url: str = Field(validation_alias="DATABASE_URL")
-    frontend_origin: str = Field(validation_alias="FRONTEND_URL")
+    frontend_origin: str = Field(
+        default="",
+        validation_alias="FRONTEND_URL",
+    )
       
     session_cookie_name: str = "prononcia_session"
     session_cookie_secure: bool = False
@@ -28,7 +31,8 @@ class Settings(BaseSettings):
       
     facebook_app_id: str | None = None
     facebook_app_secret: str | None = None
-    facebook_redirect_uri: str = Field(
+    facebook_redirect_uri: str | None = Field(
+        default=None,
         validation_alias="FACEBOOK_REDIRECT_URI",
     )
     facebook_graph_version: str = "v24.0"
@@ -36,7 +40,8 @@ class Settings(BaseSettings):
       
     google_client_id: str | None = None
     google_client_secret: str | None = None
-    google_redirect_uri: str = Field(
+    google_redirect_uri: str | None = Field(
+        default=None,
         validation_alias="GOOGLE_REDIRECT_URI",
     )
     google_state_cookie_name: str = "google_oauth_state"
@@ -45,6 +50,19 @@ class Settings(BaseSettings):
     youtube_cookie_file: str | None = Field(
         default=None,
         validation_alias="YOUTUBE_COOKIES_FILE",
+    )
+
+    worker_job_name: str | None = Field(
+        default=None,
+        validation_alias="WORKER_JOB_NAME",
+    )
+    worker_job_region: str = Field(
+        default="us-west1",
+        validation_alias="WORKER_JOB_REGION",
+    )
+    google_cloud_project: str | None = Field(
+        default=None,
+        validation_alias="GOOGLE_CLOUD_PROJECT",
     )
       
     whisper_model: str = "small"

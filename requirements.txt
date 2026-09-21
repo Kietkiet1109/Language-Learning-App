@@ -22,10 +22,6 @@ pwdlib[argon2]>=0.2.1
 # S3-compatible object storage
 boto3>=1.37.0
 
-# Background task processing
-celery[redis]>=5.4.0
-redis>=5.2.1
-
 # Media ingestion and transcription
 yt-dlp[default]>=2025.4.30
 faster-whisper>=1.1.1
