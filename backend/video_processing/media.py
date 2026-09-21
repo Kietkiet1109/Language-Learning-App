@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
+import shutil
 import unicodedata
 from functools import lru_cache
 from pathlib import Path
@@ -128,12 +129,14 @@ def download_media(
         "fragment_retries": 3,
     }
     if settings.youtube_cookie_file:
-        cookie_file = Path(settings.youtube_cookie_file)
-        if not cookie_file.is_file():
+        mounted_cookie_file = Path(settings.youtube_cookie_file)
+        if not mounted_cookie_file.is_file():
             raise RuntimeError(
                 "The configured YouTube cookie file is unavailable."
             )
-        common_options["cookiefile"] = str(cookie_file)
+        writable_cookie_file = output_directory / "youtube-cookies.txt"
+        shutil.copyfile(mounted_cookie_file, writable_cookie_file)
+        common_options["cookiefile"] = str(writable_cookie_file)
 
     with YoutubeDL(common_options) as downloader:
         metadata = downloader.extract_info(url, download=False)
