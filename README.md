@@ -6,13 +6,51 @@ The first release is intentionally narrow: French content, personal use, and tex
 
 ## Current project status
 
-This repository is an early scaffold, not a completed application.
+The project is currently hosted and the first usable French pronunciation-learning flow is available.
 
+- Frontend: https://pronuncia-kappa.vercel.app/
+- Backend: https://prononcia-1063858437208.us-west1.run.app
 - `frontend/` is a Next.js application built with React and TypeScript.
-- `backend/` currently contains a Flask placeholder. The target backend is FastAPI, so this placeholder must be migrated before the API is functional.
-- PostgreSQL, object storage, background workers, authentication, media processing, transcription, evaluation, persistence, progress history, and notifications are not implemented yet.
+- `backend/` is a FastAPI application using PostgreSQL and Alembic migrations.
+- Email/password authentication, Google and Facebook authentication, password recovery, session cookies, video processing, transcript segmentation, pronunciation evaluation, and result saving are implemented.
+- The Menu page currently supports Start Learning. Progress, Profile Setting, and Notification Setting are displayed as unavailable features while they are in development.
+- Phoneme-level pronunciation analysis, additional languages, background-worker orchestration, and production-grade progress and notification settings remain future work.
 
-Do not describe these features as complete until they have working code, migrations, tests, and a reproducible local setup.
+The hosted deployments require their frontend and backend environment variables to be configured independently.
+
+### YouTube extraction deployment
+
+The backend supports a dedicated YouTube cookie file through the
+`YOUTUBE_COOKIES_FILE` environment variable. Store the exported Netscape
+cookie file as a Google Secret Manager secret and mount that secret into the
+Cloud Run container as a file. Set `YOUTUBE_COOKIES_FILE` to the mounted file
+path. Never commit the cookie file, send it to the frontend, or expose it from
+an API endpoint.
+
+For a Cloud Run deployment, grant the service account
+`roles/secretmanager.secretAccessor`, create the secret from a local cookie
+file, and mount it without copying it into the image:
+
+```bash
+gcloud secrets create prononcia-youtube-cookies \
+  --data-file=cookies.txt
+
+gcloud run services update SERVICE_NAME \
+  --update-secrets=/secrets/youtube/cookies.txt=prononcia-youtube-cookies:latest \
+  --update-env-vars=YOUTUBE_COOKIES_FILE=/secrets/youtube/cookies.txt
+```
+
+Keep `cookies.txt` local and remove it from the machine when the secret has
+been uploaded successfully.
+
+The Docker image includes Deno and the yt-dlp default components required for
+YouTube's JavaScript challenge handling. This improves compatibility but does
+not guarantee that YouTube will permit every request.
+
+When French subtitles are available from the permitted source, the backend
+uses those timestamped captions first and avoids downloading source audio.
+Audio download remains a fallback for videos without usable French captions.
+Do not use a proxy as an authentication workaround.
 
 ## System design
 
@@ -102,7 +140,6 @@ Configure variables such as:
 
 ```text
 DATABASE_URL=postgresql+asyncpg://prononcia:password@localhost:5432/prononcia
-REDIS_URL=redis://localhost:6379/0
 S3_ENDPOINT_URL=http://localhost:9000
 S3_ACCESS_KEY_ID=<local-access-key>
 S3_SECRET_ACCESS_KEY=<local-secret-key>
@@ -133,8 +170,8 @@ in the provider values, and restart the FastAPI service.
 After the FastAPI entry point and worker are implemented, the intended commands are:
 
 ```bash
-uvicorn backend.main:app --reload --port 8000
-celery -A backend.worker.celery_app worker --loglevel=info
+cd backend
+uvicorn main:app --reload --port 8000
 ```
 
 ### Frontend

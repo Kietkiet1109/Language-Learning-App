@@ -15,6 +15,7 @@ from video_processing.media import (
     download_media,
     extract_video_id,
     is_permitted_youtube_url,
+    load_subtitles,
     normalize_transcript_text,
     transcribe_audio,
 )
@@ -245,11 +246,16 @@ def process_video(url: str) -> ProcessVideoResponse:
     video_id = extract_video_id(url)
     with tempfile.TemporaryDirectory(prefix="prononcia-") as directory:
         output_directory = Path(directory)
-        audio_path, _, metadata = download_media(
+        audio_path, subtitle_path, metadata = download_media(
             url,
             output_directory,
         )
-        if audio_path:
+        if subtitle_path:
+            french_segments, french_transcript = load_subtitles(
+                subtitle_path,
+            )
+            transcript_source = "french_subtitles"
+        elif audio_path:
             french_segments, french_transcript = transcribe_audio(audio_path)
             transcript_source = "whisper"
         else:

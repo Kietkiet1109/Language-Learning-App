@@ -245,8 +245,17 @@ async def create_session(
         value=raw_token,
         max_age=settings.session_expiry_days * 24 * 60 * 60,
         httponly=True,
-        secure=settings.session_cookie_secure,
-        samesite="lax",
+        # The deployed frontend and API are on different sites.  A secure
+        # cross-site cookie is required for credentialed browser requests.
+        secure=(
+            settings.session_cookie_secure
+            or settings.frontend_origin.startswith("https://")
+        ),
+        samesite=(
+            "none"
+            if settings.frontend_origin.startswith("https://")
+            else "lax"
+        ),
         path="/",
     )
 

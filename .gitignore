@@ -4,6 +4,8 @@ backend/.env
 !.env.example
 *.pem
 *.key
+*cookies*.txt
+*.cookies
 
 # Python / FastAPI backend
 __pycache__/

@@ -16,12 +16,14 @@ export default function LoginPage() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [formError, setFormError] = useState("");
+    const [signupSuccess, setSignupSuccess] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isFacebookSubmitting, setIsFacebookSubmitting] = useState(false);
     const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
 
     useEffect(() => {
         const query = new URLSearchParams(window.location.search);
+        const signupStatus = query.get("signup");
         const facebookErrorCode = query.get("facebook_error");
         const googleErrorCode = query.get("google_error");
         const messages: Record<string, string> = {
@@ -44,6 +46,11 @@ export default function LoginPage() {
             google_account_link_failed:
                 "Your Google account could not be linked.",
         };
+        if (signupStatus === "success") {
+            setSignupSuccess(
+                "Your account was created successfully.",
+            );
+        }
         const errorCode = facebookErrorCode ?? googleErrorCode;
         if (errorCode && messages[errorCode]) {
             setFormError(messages[errorCode]);
@@ -54,6 +61,7 @@ export default function LoginPage() {
     const handleLoginSubmit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         setFormError("");
+        setSignupSuccess("");
         setIsSubmitting(true);
 
         try {
@@ -155,6 +163,12 @@ export default function LoginPage() {
                             {isSubmitting ? "Logging in..." : "Log In"}
                         </button>
                     </form>
+
+                    {signupSuccess && (
+                        <p className="auth-feedback success" role="status">
+                            {signupSuccess}
+                        </p>
+                    )}
 
                     {formError && (
                         <p className="auth-feedback error" role="alert">

@@ -6,6 +6,8 @@ frontend
 frontend/.next
 node_modules
 backend/.env
+*cookies*.txt
+*.cookies
 backend/recordings
 backend/uploads
 backend/models

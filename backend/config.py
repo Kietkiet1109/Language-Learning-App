@@ -11,7 +11,7 @@ load_dotenv(BACKEND_DIRECTORY / ".env")
 class Settings(BaseSettings):
     """Define configuration required by the backend service."""
 
-    database_url: str
+    database_url: str = Field(validation_alias="DATABASE_URL")
     frontend_origin: str = Field(validation_alias="FRONTEND_URL")
       
     session_cookie_name: str = "prononcia_session"
@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     )
     google_state_cookie_name: str = "google_oauth_state"
     google_nonce_cookie_name: str = "google_oauth_nonce"
+
+    youtube_cookie_file: str | None = Field(
+        default=None,
+        validation_alias="YOUTUBE_COOKIES_FILE",
+    )
       
     whisper_model: str = "small"
     whisper_device: str = "cpu"

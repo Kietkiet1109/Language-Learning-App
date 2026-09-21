@@ -42,7 +42,7 @@ export default function SignupPage() {
 
         try {
             await signupUser(name, email, password);
-            router.push("/login");
+            router.push("/login?signup=success");
         } catch (error) {
             setFormError(
                 error instanceof Error

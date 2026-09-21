@@ -115,18 +115,52 @@ def download_media(
     url: str,
     output_directory: Path,
 ) -> tuple[Path | None, Path | None, dict[str, Any]]:
-    """Download and convert the source audio for Whisper transcription."""
+    """Use permitted captions first, then download audio if needed."""
 
     output_template = str(output_directory / "source.%(ext)s")
 
-    options = {
-        "format": "bestaudio[ext=m4a]/bestaudio/best",
+    common_options = {
         "noplaylist": True,
         "outtmpl": output_template,
         "quiet": True,
         "no_warnings": True,
         "retries": 3,
         "fragment_retries": 3,
+    }
+    if settings.youtube_cookie_file:
+        cookie_file = Path(settings.youtube_cookie_file)
+        if not cookie_file.is_file():
+            raise RuntimeError(
+                "The configured YouTube cookie file is unavailable."
+            )
+        common_options["cookiefile"] = str(cookie_file)
+
+    with YoutubeDL(common_options) as downloader:
+        metadata = downloader.extract_info(url, download=False)
+
+    subtitle_language, is_automatic = find_french_subtitle(metadata)
+    if subtitle_language:
+        subtitle_options = {
+            **common_options,
+            "skip_download": True,
+            "subtitlesformat": "vtt",
+            "subtitleslangs": [subtitle_language],
+        }
+        if is_automatic:
+            subtitle_options["writeautomaticsub"] = True
+        else:
+            subtitle_options["writesubtitles"] = True
+
+        with YoutubeDL(subtitle_options) as downloader:
+            downloader.download([url])
+
+        subtitle_paths = sorted(output_directory.glob("source*.vtt"))
+        if subtitle_paths:
+            return None, subtitle_paths[0], metadata
+
+    audio_options = {
+        **common_options,
+        "format": "bestaudio[ext=m4a]/bestaudio/best",
         "postprocessors": [
             {
                 "key": "FFmpegExtractAudio",
@@ -135,7 +169,7 @@ def download_media(
         ],
     }
 
-    with YoutubeDL(options) as downloader:
+    with YoutubeDL(audio_options) as downloader:
         metadata = downloader.extract_info(url, download=True)
 
     audio_path = output_directory / "source.wav"

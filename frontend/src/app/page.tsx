@@ -6,9 +6,10 @@ import { useRouter } from "next/navigation";
 import { CurrentUser, getCurrentUser, logoutUser } from "../lib/authApi";
 
 interface MenuOptionProps {
-    href: string;
+    href?: string;
     label: string;
     description: string;
+    isInDevelopment?: boolean;
 }
 
 const MENU_OPTIONS: MenuOptionProps[] = [
@@ -19,18 +20,21 @@ const MENU_OPTIONS: MenuOptionProps[] = [
     },
     {
         href: "/progress",
-        label: "Progress",
+        label: "Progress (In Development)",
         description: "Review your learning history",
+        isInDevelopment: true,
     },
     {
         href: "/profilesettings",
-        label: "Profile Setting",
+        label: "Profile Setting (In Development)",
         description: "Manage your profile preferences",
+        isInDevelopment: true,
     },
     {
         href: "/notisettings",
-        label: "Notification Setting",
+        label: "Notification Setting (In Development)",
         description: "Choose when Prononcia can remind you",
+        isInDevelopment: true,
     },
 ];
 
@@ -38,21 +42,37 @@ function MenuOption({
     href,
     label,
     description,
+    isInDevelopment = false,
 }: MenuOptionProps) {
     return (
         <li className="menu-item">
-            <Link className="menu-option" href={href}>
-                <span>{label}</span>
-                <span className="visually-hidden">{description}</span>
-                <span
-                    className="info-button"
-                    role="img"
-                    aria-label={`More information about ${label}`}
-                    title={description}
-                >
-                    i
-                </span>
-            </Link>
+            {isInDevelopment ? (
+                <button className="menu-option" type="button" disabled>
+                    <span>{label}</span>
+                    <span className="visually-hidden">{description}</span>
+                    <span
+                        className="info-button"
+                        role="img"
+                        aria-label={`More information about ${label}`}
+                        title={description}
+                    >
+                        i
+                    </span>
+                </button>
+            ) : (
+                <Link className="menu-option" href={href ?? "/"}>
+                    <span>{label}</span>
+                    <span className="visually-hidden">{description}</span>
+                    <span
+                        className="info-button"
+                        role="img"
+                        aria-label={`More information about ${label}`}
+                        title={description}
+                    >
+                        i
+                    </span>
+                </Link>
+            )}
         </li>
     );
 }
@@ -134,7 +154,7 @@ export default function Home() {
                     <nav aria-label="Main menu">
                         <ul className="menu-list">
                             {MENU_OPTIONS.map((option) => (
-                                <MenuOption key={option.href} {...option} />
+                                <MenuOption key={option.label} {...option} />
                             ))}
                         </ul>
                     </nav>

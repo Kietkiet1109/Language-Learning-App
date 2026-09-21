@@ -492,6 +492,7 @@ button, a {
 
 .menu-option  {
     display: flex;
+    width: 100%;
     min-height: 68px;
     align-items: center;
     justify-content: space-between;
@@ -503,6 +504,7 @@ button, a {
     color: var(--white);
     font-size: clamp(18px, 2.2vw, 22px);
     font-weight: 500;
+    text-align: left;
     text-decoration: none;
     transition:
             background-color 160ms ease,
@@ -525,6 +527,14 @@ button, a {
 
 .menu-option:active  {
     transform: translateY(1px);
+}
+
+.menu-option:disabled,
+.menu-option:disabled:hover {
+    cursor: not-allowed;
+    opacity: 0.72;
+    transform: none;
+    box-shadow: none;
 }
 
 .info-button  {
